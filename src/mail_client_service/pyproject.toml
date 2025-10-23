@@ -1,0 +1,43 @@
+[project]
+name = "mail-client-service"
+version = "0.1.0"
+description = "FastAPI service that uses mail-client-api and gmail-client-impl"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "mail-client-api",
+    "gmail-client-impl",
+    "httpx>=0.28.1",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend = "../../pyproject.toml"
+
+[tool.ruff.lint]
+ignore = []
+
+[tool.uv.sources]
+mail-client-api = { workspace = true }
+gmail-client-impl = { workspace = true }
+
+[tool.pytest.ini_options]
+markers = [
+  "integration: integration tests that may touch real services",
+  "circleci: tests that run (or are gated) in CI"
+]
+
+

@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Template repository for a mail client"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "python-dotenv>=1.0.0",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -24,6 +26,9 @@ dev = [
 members = [
   "src/mail_client_api",
   "src/gmail_client_impl",
+  "src/mail_client_service",
+  "src/mail_client_adapter",
+  "src/mail_client_service_client",
 ]
 
 [tool.ruff]
@@ -33,6 +38,7 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
+  "COM812", # The `COM812` rule may cause conflicts with code formatters. It is ignored to avoid unexpected behavior.
   "D203", # `incorrect-blank-line-before-class` (D203) and `no-blank-line-before-class` (D211) are incompatible. Ignoring `incorrect-blank-line-before-class`.
   "D213", # `multi-line-summary-first-line` (D212) and `multi-line-summary-second-line` (D213) are incompatible. Ignoring `multi-line-summary-second-line`.
   "S101", # Use of `assert` detected --> Asserts are good in our opinion. Tests use asserts profusely.
@@ -42,7 +48,9 @@ per-file-ignores = { "**/test_*.py" = ["TRY300", "BLE001", "ANN401", "SLF001", "
 [tool.mypy]
 strict = true
 explicit_package_bases = true # Required for src layout
-mypy_path = ["src/mail_client_api/src", "src/mail_client_gmail_impl/src"]
+
+mypy_path = ["src/mail_client_api/src", "src/gmail_client_impl/src", "src/mail_client_service/src", "src/mail_client_adapter/src", "src/mail_client_service_client/src"]
+
 ignore_missing_imports = false
 warn_unused_ignores = false
 
@@ -53,6 +61,10 @@ module = [
     "googleapiclient.*",
     "gmail_client_impl.*",
     "mail_client_api.*",
+    "mail_client_service.*",
+    "mail_client_adapter.*",
+    "mail_client_service_client.*",
+
 ]
 ignore_missing_imports = true
 
@@ -73,7 +85,7 @@ markers = [
 
 [tool.coverage.run]
 source = ["src"]
-omit = ["*/tests/*", "*/__main__.py"]
+omit = ["/tests/", "/main.py", "/mail_client_service_client/*"]
 
 [tool.coverage.report]
 fail_under = 85 # Justification: A high threshold ensures most code is tested.
@@ -81,4 +93,11 @@ exclude_lines = [
     "pragma: no cover",
     "raise NotImplementedError",
     "if TYPE_CHECKING:",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.13.2",
 ]

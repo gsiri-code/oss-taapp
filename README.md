@@ -27,19 +27,23 @@ The project is a `uv` workspace containing four primary packages:
 ## Project Structure
 
 ```
-ta-assignment/
+oss-taapp/
 ├── src/                          # Source packages (uv workspace members)
-│   ├── mail_client_api/          # Abstract mail client base class (ABC)  
-│   └── gmail_client_impl/        # Gmail-specific client implementation
+│   ├── mail_client_api/          # Abstract mail client base class (ABC)
+│   ├── gmail_client_impl/        # Gmail-specific client implementation
+│   ├── mail_client_adapter/      # Adapter pattern implementation
+│   ├── mail_client_service/      # FastAPI service implementation
+│   └── mail_client_service_client/ # Auto-generated service client
 ├── tests/                        # Integration and E2E tests
 │   ├── integration/              # Component integration tests
 │   └── e2e/                      # End-to-end application tests
 ├── docs/                         # Documentation source files
-├── .circleci/                    # CircleCI configuration
 ├── main.py                       # Main application entry point
 ├── pyproject.toml               # Project configuration (dependencies, tools)
 ├── uv.lock                      # Locked dependency versions
-└── credentials.json             # Google OAuth credentials (local only)
+├── mkdocs.yml                   # MkDocs configuration
+├── token.json                   # OAuth token (local only)
+└── README.md
 ```
 
 ## Project Setup

@@ -12,7 +12,6 @@ from unittest.mock import patch
 
 import pytest
 
-import gmail_client_impl
 import mail_client_api
 
 # Mark all tests in this file as e2e tests
@@ -242,6 +241,15 @@ def test_main_script_handles_no_credentials_gracefully(tmp_path: Path) -> None:
 
     dummy_token_path = tmp_path / "token.json"
     dummy_credentials_path = tmp_path / "credentials.json"
+
+    # Import and register the gmail client implementation within the test context
+    # Re-register the Gmail client implementation after conftest has reset it
+    # We need to do this because the conftest autouse fixture resets dependency injection
+    from gmail_client_impl.gmail_impl import get_client_impl
+
+    import gmail_client_impl  # This will register the implementation
+
+    mail_client_api.get_client = get_client_impl
 
     with (
         patch.dict(os.environ, patched_env, clear=False),
