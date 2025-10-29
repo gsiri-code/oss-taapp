@@ -35,19 +35,17 @@ class Client(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def insert_task(
-        self, tasklist: TaskList, task: Task, parent: Task.id = None, previous: Task.id = None
-    ) -> Task:
+    def insert_task(self, tasklist: TaskList, task: Task) -> Task:
         """Insert a task into a tasklist."""
         raise NotImplementedError
 
     @abstractmethod
-    def delete_task(self, task_id: Task.id) -> bool:
+    def delete_task(self, task_id: str) -> bool:
         """Delete a task by ..."""
         raise NotImplementedError
 
     @abstractmethod
-    def get_task(self, task_id: Task.id) -> Task:
+    def get_task(self, task_id: str) -> Task:
         """Get a task by its ID."""
         raise NotImplementedError
 

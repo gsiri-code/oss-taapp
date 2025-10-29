@@ -1,7 +1,6 @@
 """Tasks contract - Core task representation."""
 
 from abc import ABC, abstractmethod
-from typing import Any
 
 
 class Task(ABC):
@@ -53,36 +52,6 @@ class Task(ABC):
     @abstractmethod
     def hidden(self) -> bool:
         """Return whether the task is hidden."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def parent(self) -> str | None:
-        """Return the parent task identifier if this is a subtask."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def position(self) -> str | None:
-        """Return the position of the task among its siblings."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def links(self) -> list[dict[str, str]]:
-        """Return collection of links associated with the task."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def web_view_link(self) -> str | None:
-        """Return an absolute link to the task in the Google Tasks Web UI."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def assignment_info(self) -> dict[str, Any] | None:
-        """Return context information for assigned tasks."""
         raise NotImplementedError
 
 

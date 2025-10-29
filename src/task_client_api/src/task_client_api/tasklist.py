@@ -37,7 +37,7 @@ class TaskList(ABC):
         raise NotImplementedError
 
 
-def get_task_list(task_list_id: str, raw_data: str) -> TaskList:
+def get_tasklist(task_list_id: str, raw_data: str) -> TaskList:
     """Return an instance of a TaskList.
 
     Args:
