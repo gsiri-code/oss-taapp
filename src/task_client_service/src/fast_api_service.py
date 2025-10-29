@@ -52,7 +52,6 @@ TaskClientDep = Annotated[Client, Depends(get_task_client)]
 """
 TODO: 
 implement these:
-    - def list_tasklists(self) -> list[tasklist.TaskList]:
     - delete_tasklist
     - list_tasks
     - insert_task
@@ -60,6 +59,7 @@ implement these:
     - get_task
 
 Done:
+    - def list_tasklists(self) -> list[tasklist.TaskList]:
     - def list_tasklists(self) -> list[tasklist.TaskList]:
 
 
@@ -111,6 +111,48 @@ async def insert_tasklist(
         return format_tasklist_object(new_tasklist)
     except Exception as e:
         logger.error(f"Error inserting tasklist '{title}': {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.delete("/tasklists/{tasklist_id}")
+async def delete_tasklist(
+    client: TaskClientDep,
+    tasklist_id: str,
+) -> dict[str, str]:
+    """Delete a tasklist."""
+    logger.info(f"Received request to delete tasklist with ID: '{tasklist_id}'")
+    try:
+        # Find the tasklist to delete
+        target_tasklist: TaskList | None = None
+        tasklists: list[TaskList] = client.list_tasklists()
+
+        if tasklists[0].id == tasklist_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Error: Invalid request cannot delete default tasklist",
+            )
+
+        # Check if the tasklist exists
+        for tasklist in tasklists:
+            if tasklist.id == tasklist_id:
+                target_tasklist = tasklist
+                break
+
+        if not target_tasklist:
+            raise HTTPException(
+                status_code=404, detail=f"Error: Tasklist '{tasklist_id}' not found"
+            )
+
+        success = client.delete_tasklist(tasklist_id)
+
+        if not success:
+            raise Exception
+
+        logger.info(f"Successfully deleted tasklist with ID: {tasklist_id}")
+
+        return {"detail": f"Tasklist '{target_tasklist.id}' deleted."}
+    except Exception as e:
+        logger.error(f"Error deleting tasklist '{tasklist_id}': {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
