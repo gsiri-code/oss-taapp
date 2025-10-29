@@ -123,8 +123,7 @@ class GTaskClient(task_client_api.Client):
         opening the user's browser to complete authentication with Google.
         """
         if not Path(creds_path).exists():
-            msg = f"'{creds_path}' not found. Cannot run interactive auth."
-            raise FileNotFoundError(msg)
+            raise FileNotFoundError(f"'{creds_path}' not found. Cannot run interactive auth.")  # noqa: EM102 TRY003
         flow = InstalledAppFlow.from_client_secrets_file(
             creds_path,
             self.SCOPES,
@@ -236,18 +235,18 @@ class GTaskClient(task_client_api.Client):
         else:
             return True
 
-    def insert_tasklist(self, tl: tasklist.TaskList) -> tasklist.TaskList:
+    def insert_tasklist(self, tasklist: tasklist.TaskList) -> tasklist.TaskList:
         """Insert a tasklist.
 
         Args:
-            tl: TaskList carrying the title to create.
+            tasklist: The tasklist to insert.
 
         Returns:
-            The created TaskList as returned by the API.
+            The inserted tasklist with updated fields (e.g., id, etag).
 
         """
         try:
-            body = {"title": tl.title}
+            body = {"title": tasklist.title}
             result = (
                 self.service.tasklists()  # type: ignore[attr-defined]
                 .insert(body=body)
@@ -255,10 +254,7 @@ class GTaskClient(task_client_api.Client):
             )
             # Convert result dict to JSON string for raw_data
             raw_data = json.dumps(result)
-            return task_client_api.tasklist.get_tasklist(
-                task_list_id=result["id"],
-                raw_data=raw_data,
-            )
+            return task_client_api.tasklist.get_tasklist(raw_data=raw_data)
         except (HttpError, OSError, ValueError) as e:
             self.logger.exception("Failed to insert tasklist")
             self.logger.debug("Error details: %s", e)
@@ -273,17 +269,14 @@ class GTaskClient(task_client_api.Client):
         """
         try:
             result = (
-                self.service.tasklists().list().execute()  # type: ignore[attr-defined]
+                self.service.tasklists()  # type: ignore[attr-defined]
+                .list()
+                .execute()
             )
             tasklists = []
             for item in result.get("items", []):
                 raw_data = json.dumps(item)
-                tasklists.append(
-                    tasklist.get_tasklist(
-                        task_list_id=item["id"],
-                        raw_data=raw_data,
-                    )
-                )
+                tasklists.append(tasklist.get_tasklist(raw_data=raw_data))
         except (HttpError, OSError, ValueError) as e:
             self.logger.exception("Failed to list tasklists")
             self.logger.debug("Error details: %s", e)
@@ -314,7 +307,6 @@ class GTaskClient(task_client_api.Client):
                 raw_data = json.dumps(item)
                 tasks.append(
                     task.get_task(
-                        task_id=item["id"],
                         raw_data=raw_data,
                     )
                 )
@@ -325,55 +317,39 @@ class GTaskClient(task_client_api.Client):
         else:
             return tasks
 
-    def insert_task(self, tasklist_id: str, t: task.Task) -> task.Task:
-        """Insert a task into a tasklist.
-
-        Args:
-            tasklist_id: ID of the target tasklist.
-            t: Task data to create.
-
-        Returns:
-            The created Task as returned by the API.
-
-        """
-        body = {
-            "title": t.title,
-            "notes": getattr(t, "notes", None),
-            "due": getattr(t, "due", None),
-            "completed": getattr(t, "completed", None),
-            "status": getattr(t, "status", None),
-            "deleted": getattr(t, "deleted", None),
-            "hidden": getattr(t, "hidden", None),
-            "parent": getattr(t, "parent", None),
-        }
+    def insert_task(self, tasklist_id: str, task: task.Task) -> task.Task:
         """Insert a task into a tasklist.
 
         Args:
             tasklist_id: The ID of the tasklist to insert the task into.
-            task_input: Dictionary of task fields
-                        (e.g., title, notes, status, due, parent, previous).
+            task: The task to insert.
 
         Returns:
             The inserted task with updated fields.
 
         """
         try:
+            body: dict[str, str | None] = {
+                "title": task.title,
+            }
+            if task.notes:
+                body["notes"] = task.notes
+            if task.status:
+                body["status"] = task.status
+            if task.due:
+                body["due"] = task.due
+
             result = (
                 self.service.tasks()  # type: ignore[attr-defined]
                 .insert(tasklist=tasklist_id, body=body)
                 .execute()
             )
             raw_data = json.dumps(result)
+            return task_client_api.task.get_task(raw_data=raw_data)
         except (HttpError, OSError, ValueError) as e:
             self.logger.exception("Failed to insert task")
             self.logger.debug("Error details: %s", e)
             raise
-        else:
-            self.logger.info("Successfully created task with ID: %s", result["id"])
-            return task_client_api.task.get_task(
-                task_id=result["id"],
-                raw_data=raw_data,
-            )
 
     def delete_task(self, tasklist_id: str, task_id: str) -> bool:
         """Delete a task by its ID.
@@ -435,10 +411,7 @@ class GTaskClient(task_client_api.Client):
             error_msg = f"Failed to retrieve task {task_id}"
             raise ValueError(error_msg) from e
         else:
-            return task.get_task(
-                task_id=task_id,
-                raw_data=raw_data,
-            )
+            return task.get_task(raw_data=raw_data)
 
 
 def get_client_impl(*, interactive: bool = False) -> task_client_api.Client:

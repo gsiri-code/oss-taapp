@@ -10,9 +10,8 @@ from task_client_api import task
 class GTask(task.Task):
     """Concrete implementation of the Task abstraction for Google Tasks."""
 
-    def __init__(self, task_id: str, raw_data: str) -> None:
+    def __init__(self, raw_data: str) -> None:
         """Initialize the task from raw JSON data."""
-        self._id = task_id
         self._raw_data = raw_data
         try:
             self._data = json.loads(raw_data)
@@ -22,7 +21,7 @@ class GTask(task.Task):
     @property
     def id(self) -> str:
         """Get the unique task identifier."""
-        return self._id
+        return cast("str", self._data.get("id", ""))
 
     @property
     def title(self) -> str:
@@ -60,9 +59,9 @@ class GTask(task.Task):
         return cast("bool", self._data.get("hidden", False))
 
 
-def get_task_impl(task_id: str, raw_data: str) -> task.Task:
+def get_task_impl(raw_data: str) -> task.Task:
     """Return an instance of the concrete GTask implementation."""
-    return GTask(task_id=task_id, raw_data=raw_data)
+    return GTask(raw_data=raw_data)
 
 
 def register() -> None:

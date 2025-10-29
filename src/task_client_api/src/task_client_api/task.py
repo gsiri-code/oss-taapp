@@ -55,7 +55,7 @@ class Task(ABC):
         raise NotImplementedError
 
 
-def get_task(task_id: str, raw_data: str) -> Task:
+def get_task(raw_data: str) -> Task:
     """Return an instance of a Task.
 
     Args:

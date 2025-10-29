@@ -10,9 +10,8 @@ from task_client_api import tasklist
 class GTaskList(tasklist.TaskList):
     """Concrete implementation of the TaskList abstraction for Google TaskLists."""
 
-    def __init__(self, task_list_id: str, raw_data: str) -> None:
+    def __init__(self, raw_data: str) -> None:
         """Initialize the tasklist from raw JSON data."""
-        self._id = task_list_id
         self._raw_data = raw_data
         try:
             self._data = json.loads(raw_data)
@@ -22,7 +21,7 @@ class GTaskList(tasklist.TaskList):
     @property
     def id(self) -> str:
         """Get the unique task list identifier."""
-        return self._id
+        return cast("str", self._data.get("id", ""))
 
     @property
     def title(self) -> str:
@@ -45,9 +44,9 @@ class GTaskList(tasklist.TaskList):
         return cast("str", self._data.get("selfLink", ""))
 
 
-def get_tasklist_impl(task_list_id: str, raw_data: str) -> tasklist.TaskList:
+def get_tasklist_impl(raw_data: str) -> tasklist.TaskList:
     """Return an instance of the concrete GTaskList implementation."""
-    return GTaskList(task_list_id=task_list_id, raw_data=raw_data)
+    return GTaskList(raw_data=raw_data)
 
 
 def register() -> None:
