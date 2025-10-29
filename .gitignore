@@ -24,6 +24,9 @@ build/
 .vscode/
 .idea/
 
+# macOS system files
+.DS_Store
+
 # MkDocs build artifacts
 site/
 

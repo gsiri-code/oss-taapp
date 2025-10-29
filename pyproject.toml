@@ -29,6 +29,7 @@ members = [
   "src/mail_client_service",
   "src/mail_client_adapter",
   "src/mail_client_service_client",
+  "src/task_client_api",
 ]
 
 [tool.ruff]
@@ -49,7 +50,14 @@ per-file-ignores = { "**/test_*.py" = ["TRY300", "BLE001", "ANN401", "SLF001", "
 strict = true
 explicit_package_bases = true # Required for src layout
 
-mypy_path = ["src/mail_client_api/src", "src/gmail_client_impl/src", "src/mail_client_service/src", "src/mail_client_adapter/src", "src/mail_client_service_client/src"]
+mypy_path = [
+    "src/mail_client_api/src",
+    "src/gmail_client_impl/src",
+    "src/mail_client_service/src",
+    "src/mail_client_adapter/src",
+    "src/mail_client_service_client/src",
+    "src/task_client_api",
+]
 
 ignore_missing_imports = false
 warn_unused_ignores = false
@@ -64,6 +72,7 @@ module = [
     "mail_client_service.*",
     "mail_client_adapter.*",
     "mail_client_service_client.*",
+    "task_client_api.*",
 
 ]
 ignore_missing_imports = true
