@@ -16,6 +16,7 @@ members = [
     "mail-client-service-client",
     "ta-assignment",
     "task-client-api",
+    "task-client-service",
 ]
 
 [[package]]
@@ -1400,6 +1401,11 @@ dev = [
 name = "task-client-api"
 version = "0.1.0"
 source = { editable = "src/task_client_api" }
+
+[[package]]
+name = "task-client-service"
+version = "0.1.0"
+source = { virtual = "src/task_client_service" }
 
 [[package]]
 name = "tomli"

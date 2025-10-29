@@ -31,6 +31,7 @@ members = [
   "src/mail_client_service_client",
   "src/task_client_api",
   "src/gtask_client_impl",
+  "src/task_client_service",
 ]
 
 [tool.ruff]
