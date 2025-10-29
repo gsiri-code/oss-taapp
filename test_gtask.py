@@ -1,6 +1,6 @@
 """Main module for demonstrating the task client."""
 
-import contextlib
+import json
 import logging
 
 import gtask_client_impl  # noqa: F401
@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def main() -> None:  # noqa: PLR0915, PLR0912, C901 # Just a test script
+def main() -> None:  # noqa: C901 # Just a test script
     """Initialize the client and demonstrate all task client methods."""
     # Now, get_client() returns a GTaskClient instance...
     client = task_client_api.get_client(interactive=False)
@@ -34,7 +34,7 @@ def main() -> None:  # noqa: PLR0915, PLR0912, C901 # Just a test script
     # Test 2: Get tasks from the first tasklist
     test_tasklist = tasklists[0]
     logger.info("\nTest 2: Listing tasks from tasklist '%s'...", test_tasklist.title)
-    tasks = client.list_tasks(test_tasklist)
+    tasks = client.list_tasks(test_tasklist.id)
 
     logger.info("Found %d task(s) in tasklist '%s'", len(tasks), test_tasklist.title)
 
@@ -53,79 +53,75 @@ def main() -> None:  # noqa: PLR0915, PLR0912, C901 # Just a test script
         if task.due:
             logger.info("  Due: %s", task.due)
 
-    # Test 3: Get a specific task by ID
-    if tasks:
-        test_task_id = tasks[0].id
-        logger.info("\nTest 3: Getting task by ID: %s...", test_task_id)
-        with contextlib.suppress(Exception):
-            task = client.get_task(test_task_id)
-            logger.info("Retrieved task: %s (Status: %s)", task.title, task.status)
-
-    # Test 4: Create a new task (if we have a tasklist)
-    if test_tasklist and len(tasks) >= 0:  # Allow creating even if no tasks exist
-        logger.info("\nTest 4: Creating a new test task...")
-        # We need to create a Task object, but we can't easily do that without raw_data
-        # For now, we'll note that this requires a Task object with at least a title
-        logger.info("Note: insert_task requires a Task object. Skipping creation test.")
-
-    # Test 5: Delete a tasklist (WARNING: This is destructive!)
-    # Only test if we have more than one tasklist to avoid deleting all tasklists
-    if len(tasklists) > 1:
-        logger.info("\nTest 5: Deleting a tasklist (destructive operation)...")
-        delete_tasklist = tasklists[-1]  # Delete the last tasklist
+    # Test 3: Create and store a task locally
+    if test_tasklist:
+        logger.info("\nTest 3: Creating and storing a new test task...")
         try:
-            confirmation = input(f"Type 'DELETE' to confirm deletion of tasklist '{delete_tasklist.title}': ")
-            if confirmation == "DELETE":
-                success = client.delete_tasklist(delete_tasklist)
-                if success:
-                    logger.info(
-                        "Tasklist '%s' (ID: %s) deleted successfully.",
-                        delete_tasklist.title,
-                        delete_tasklist.id,
-                    )
-                else:
-                    logger.info(
-                        "Failed to delete tasklist '%s' (ID: %s).",
-                        delete_tasklist.title,
-                        delete_tasklist.id,
-                    )
-        except EOFError:
-            # This means that CircleCI or another non-interactive environment is
-            # not going to actually delete anything
-            logger.info("Non-interactive environment detected. Skipping deletion.")
-    else:
-        logger.info(
-            "\nTest 5: Skipping tasklist deletion (only %d tasklist(s) found)",
-            len(tasklists),
-        )
+            # Create a minimal Task object with just a title
+            # We need raw_data to create a Task, so we'll use a minimal JSON structure
+            task_data = {"title": "Test Task - Delete and Reinsert"}
+            raw_data = json.dumps(task_data)
 
-    # Test 6: Delete a task (WARNING: This is destructive!)
-    # Only test if we have tasks in the first tasklist
-    if tasks and len(tasks) > 0:
-        logger.info("\nTest 6: Deleting a task (destructive operation)...")
-        delete_task = tasks[-1]  # Delete the last task
-        try:
-            confirmation = input(f"Type 'DELETE' to confirm deletion of task '{delete_task.title}': ")
-            if confirmation == "DELETE":
-                success = client.delete_task(delete_task.id)
-                if success:
-                    logger.info(
-                        "Task '%s' (ID: %s) deleted successfully.",
-                        delete_task.title,
-                        delete_task.id,
+            # Create task with temporary ID (will be replaced after insert)
+            # Calling the create task function associated with task object, NOT the service call
+            new_task = task_client_api.task.get_task(task_id="temp", raw_data=raw_data)
+
+            # Insert the task via service call
+            inserted_task = client.insert_task(test_tasklist.id, new_task)
+            logger.info(
+                "Created and stored task: '%s' (ID: %s)",
+                inserted_task.title,
+                inserted_task.id,
+            )
+            # Store the task locally for later operations
+            stored_task = inserted_task
+            stored_task_data = {
+                "title": stored_task.title,
+                "notes": stored_task.notes,
+                "status": stored_task.status,
+                "due": stored_task.due,
+            }
+
+            # Test 4: Delete the stored task
+            logger.info("\nTest 4: Deleting the stored task...")
+            deletion_success = client.delete_task(test_tasklist.id, stored_task.id)
+            if deletion_success:
+                logger.info(
+                    "Task '%s' (ID: %s) deleted successfully.",
+                    stored_task.title,
+                    stored_task.id,
+                )
+            else:
+                logger.info(
+                    "Failed to delete task '%s' (ID: %s).",
+                    stored_task.title,
+                    stored_task.id,
+                )
+
+            # Test 5: Reinsert the task (only if deletion was successful)
+            if deletion_success:
+                logger.info("\nTest 5: Reinserting the deleted task...")
+                try:
+                    # Recreate the task object with the stored data
+                    raw_data_reinsert = json.dumps(stored_task_data)
+                    task_to_reinsert = task_client_api.task.get_task(
+                        task_id="temp", raw_data=raw_data_reinsert
                     )
-                else:
-                    logger.info(
-                        "Failed to delete task '%s' (ID: %s).",
-                        delete_task.title,
-                        delete_task.id,
+                    # Reinsert the task
+                    reinserted_task = client.insert_task(
+                        test_tasklist.id, task_to_reinsert
                     )
-        except EOFError:
-            # This means that CircleCI or another non-interactive environment is
-            # not going to actually delete anything
-            logger.info("Non-interactive environment detected. Skipping deletion.")
+                    logger.info(
+                        "Reinserted task: '%s' (ID: %s)",
+                        reinserted_task.title,
+                        reinserted_task.id,
+                    )
+                except Exception as e:
+                    logger.info("Failed to reinsert task: %s", e)
+        except Exception as e:
+            logger.info("Failed to create/store task: %s", e)
     else:
-        logger.info("\nTest 6: Skipping task deletion (no tasks found)")
+        logger.info("\nTest 3: Skipping task creation (no tasklist available)")
 
     logger.info("\nDemo complete.")
 

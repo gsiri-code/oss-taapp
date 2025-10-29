@@ -212,17 +212,16 @@ class GTaskClient(task_client_api.Client):
 
     """   TASKLIST OPERATIONS   """
 
-    def delete_tasklist(self, tasklist: tasklist.TaskList) -> bool:
+    def delete_tasklist(self, tasklist_id: str) -> bool:
         """Delete a tasklist by its ID.
 
         Args:
-            tasklist: The tasklist to delete.
+            tasklist_id: The ID of the tasklist to delete.
 
         Returns:
             True if the tasklist was successfully deleted, False otherwise.
 
         """
-        tasklist_id = tasklist.id
         try:
             (
                 self.service.tasklists()  # type: ignore[attr-defined]
@@ -295,17 +294,16 @@ class GTaskClient(task_client_api.Client):
 
     """   TASK OPERATIONS   """
 
-    def list_tasks(self, tasklist: tasklist.TaskList) -> list[task.Task]:
+    def list_tasks(self, tasklist_id: str) -> list[task.Task]:
         """List all tasks in a tasklist.
 
         Args:
-            tasklist: The tasklist to list tasks from.
+            tasklist_id: The ID of the tasklist to list tasks from.
 
         Returns:
             A list of Task objects.
 
         """
-        tasklist_id = tasklist.id
         try:
             result = (
                 self.service.tasks()  # type: ignore[attr-defined]
@@ -330,24 +328,19 @@ class GTaskClient(task_client_api.Client):
 
     def insert_task(
         self,
-        tasklist: tasklist.TaskList,
-        task: task.Task,
-        parent: str | None = None,
-        previous: str | None = None,
+        tasklist_id: str,
+        task: task.Task
     ) -> task.Task:
         """Insert a task into a tasklist.
 
         Args:
-            tasklist: The tasklist to insert the task into.
+            tasklist_id: The ID of the tasklist to insert the task into.
             task: The task to insert.
-            parent: Optional parent task ID if this is a subtask.
-            previous: Optional previous task ID for positioning.
 
         Returns:
             The inserted task with updated fields.
 
         """
-        tasklist_id = tasklist.id
         try:
             body: dict[str, str | None] = {
                 "title": task.title,
@@ -358,10 +351,6 @@ class GTaskClient(task_client_api.Client):
                 body["status"] = task.status
             if task.due:
                 body["due"] = task.due
-            if parent:
-                body["parent"] = parent
-            if previous:
-                body["previous"] = previous
 
             result = (
                 self.service.tasks()  # type: ignore[attr-defined]
@@ -378,7 +367,7 @@ class GTaskClient(task_client_api.Client):
             self.logger.debug("Error details: %s", e)
             raise
 
-    def delete_task(self, task_id: str) -> bool:
+    def delete_task(self, tasklist_id: str, task_id: str) -> bool:
         """Delete a task by its ID.
 
         Note: The Google Tasks API requires both tasklist ID and task ID.
@@ -386,6 +375,7 @@ class GTaskClient(task_client_api.Client):
         For more control, use a task object that contains the tasklist reference.
 
         Args:
+            tasklist_id: The ID of the tasklist to delete the task from.
             task_id: The unique identifier of the task to delete.
 
         Returns:
@@ -397,7 +387,7 @@ class GTaskClient(task_client_api.Client):
             # In a production system, you might want to store tasklist_id with tasks
             (
                 self.service.tasks()  # type: ignore[attr-defined]
-                .delete(tasklist="@default", task=task_id)
+                .delete(tasklist=tasklist_id, task=task_id)
                 .execute()
             )
         except (HttpError, OSError, ValueError) as e:
@@ -407,13 +397,14 @@ class GTaskClient(task_client_api.Client):
         else:
             return True
 
-    def get_task(self, task_id: str) -> task.Task:
+    def get_task(self, tasklist_id: str, task_id: str) -> task.Task:
         """Get a task by its ID.
 
         Note: The Google Tasks API requires both tasklist ID and task ID.
         This implementation attempts to get from the default "@default" tasklist.
 
         Args:
+            tasklist_id: The ID of the tasklist to get the task from.
             task_id: The unique identifier of the task to retrieve.
 
         Returns:
@@ -424,10 +415,9 @@ class GTaskClient(task_client_api.Client):
 
         """
         try:
-            # Note: Google Tasks API requires tasklist ID, defaulting to "@default"
             result = (
                 self.service.tasks()  # type: ignore[attr-defined]
-                .get(tasklist="@default", task=task_id)
+                .get(tasklist=tasklist_id, task=task_id)
                 .execute()
             )
             raw_data = json.dumps(result)

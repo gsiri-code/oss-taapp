@@ -14,7 +14,7 @@ class Client(ABC):
     """   TASKLIST OPERATIONS   """
 
     @abstractmethod
-    def delete_tasklist(self, tasklist: TaskList) -> bool:
+    def delete_tasklist(self, tasklist_id: str) -> bool:
         """Delete a tasklist by ..."""
         raise NotImplementedError
 
@@ -30,22 +30,22 @@ class Client(ABC):
 
     """   TASK OPERATIONS   """
 
-    def list_tasks(self, tasklist: TaskList) -> list[Task]:
+    def list_tasks(self, tasklist_id: str) -> list[Task]:
         """List all tasks in a tasklist."""
         raise NotImplementedError
 
     @abstractmethod
-    def insert_task(self, tasklist: TaskList, task: Task) -> Task:
+    def insert_task(self, tasklist_id: str, task: Task) -> Task:
         """Insert a task into a tasklist."""
         raise NotImplementedError
 
     @abstractmethod
-    def delete_task(self, task_id: str) -> bool:
+    def delete_task(self, tasklist_id: str, task_id: str) -> bool:
         """Delete a task by ..."""
         raise NotImplementedError
 
     @abstractmethod
-    def get_task(self, task_id: str) -> Task:
+    def get_task(self, tasklist_id: str, task_id: str) -> Task:
         """Get a task by its ID."""
         raise NotImplementedError
 
