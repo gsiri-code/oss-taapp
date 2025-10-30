@@ -14,7 +14,6 @@ import logging
 import os
 from pathlib import Path
 from typing import ClassVar
-from datetime import datetime
 
 import task_client_api
 from google.auth.exceptions import GoogleAuthError, RefreshError
@@ -124,7 +123,8 @@ class GTaskClient(task_client_api.Client):
         opening the user's browser to complete authentication with Google.
         """
         if not Path(creds_path).exists():
-            raise FileNotFoundError(f"'{creds_path}' not found. Cannot run interactive auth.")  # noqa: EM102 TRY003
+            msg = f"'{creds_path}' not found. Cannot run interactive auth."
+            raise FileNotFoundError(msg)
         flow = InstalledAppFlow.from_client_secrets_file(
             creds_path,
             self.SCOPES,
@@ -240,7 +240,7 @@ class GTaskClient(task_client_api.Client):
         """Insert a tasklist.
 
         Args:
-            tasklist: The tasklist to insert.
+            title: The name of the new tasklist.
 
         Returns:
             The inserted tasklist with updated fields (e.g., id, etag).
@@ -323,7 +323,8 @@ class GTaskClient(task_client_api.Client):
 
         Args:
             tasklist_id: The ID of the tasklist to insert the task into.
-            task: The task to insert.
+            task_input: Dictionary of task fields
+                        (e.g., title, notes, status, due, parent, previous).
 
         Returns:
             The inserted task with updated fields.

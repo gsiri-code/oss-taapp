@@ -3,6 +3,7 @@
 import logging
 from typing import Annotated, Any, TypedDict
 
+from dependencies import TaskClientDep
 from fastapi import APIRouter, Body, HTTPException
 
 from task_client_api import TaskList
