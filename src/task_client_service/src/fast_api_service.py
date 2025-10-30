@@ -178,27 +178,66 @@ async def delete_tasklist(
 
 # --- TASK OPERATIONS ---
 
-
-@app.get("/tasks/{tasklist_id}")
-async def list_tasks(
-    client: TaskClientDep, tasklist_id: str
-) -> list[dict[str, str | None | bool]]:
-    """Get a list of messages from the mail client."""
-    logger.info("Received request to list tasklists")
+# Get a specific task by ID from a tasklist
+@app.get("/tasks/{tasklist_id}/{task_id}")
+async def get_task(
+    client: TaskClientDep,
+    tasklist_id: str,
+    task_id: str,
+) -> dict[str, str | None | bool]:
+    logger.info("Work to get task '%s' from tasklist '%s'", task_id, tasklist_id)
     try:
-        tasks = client.list_tasks(tasklist_id)
-
-        formatted_tasks: list[dict[str, str]] = []
-
-        formatted_tasks = [task_to_dict(task) for task in tasks]
-
-        return formatted_tasks
-
+        task = client.get_task(tasklist_id, task_id)
+        logger.info("Successfully got task '%s' from tasklist '%s'", task_id, tasklist_id)
+        return {
+            "id": task.id,
+            "title": task.title,
+            "notes": task.notes,
+            "status": task.status,
+            "due": task.due,
+            "completed": task.completed,
+            "deleted": task.deleted,
+            "hidden": task.hidden,
+        }
     except Exception as e:
-        logger.critical(e, exc_info=True)
+        logger.critical(
+            "Error getting task '%s' from tasklist '%s': %s",
+            task_id,
+            tasklist_id,
+            e,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+# Detele a task by ID from a specific tasklist
+@app.delete("/tasks/{tasklist_id}/{task_id}")
+async def delete_task(
+    client: TaskClientDep,
+    tasklist_id: str,
+    task_id: str,
+) -> dict[str, str]:
+    logger.info("Work to delete task '%s' from tasklist '%s'", task_id, tasklist_id)
+    try:
+        success = client.delete_task(tasklist_id, task_id)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+        logger.info("Successfully deleted task '%s' from tasklist '%s'", task_id, tasklist_id)
+        return {"detail": f"Task '{task_id}' deleted from tasklist '{tasklist_id}'."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.critical(
+            "Error deleting task '%s' from tasklist '%s': %s",
+            task_id,
+            tasklist_id,
+            e,
+            exc_info=True,
+        )
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     # - insert_task
+
+
 
 
 if __name__ == "__main__":
