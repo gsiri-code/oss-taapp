@@ -52,7 +52,6 @@ TaskClientDep = Annotated[Client, Depends(get_task_client)]
 """
 TODO: 
 implement these:
-    - delete_tasklist
     - list_tasks
     - insert_task
     - delete_task
@@ -61,6 +60,7 @@ implement these:
 Done:
     - def list_tasklists(self) -> list[tasklist.TaskList]:
     - def list_tasklists(self) -> list[tasklist.TaskList]:
+    - delete_tasklist
 
 
 """
@@ -97,6 +97,20 @@ async def list_tasklists(client: TaskClientDep) -> list[dict[str, str]]:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@app.get("/tasks/{tasklist_id}")
+async def list_tasks(client: TaskClientDep, tasklist_id: str) -> list[dict[str, str]]:
+    """Get a list of messages from the mail client."""
+    logger.info("Received request to list tasklists")
+    try:
+        tasklist = client.get_tasklist(tasklist_id)
+
+        client.list_tasks(tasklist)
+
+    except Exception as e:
+        logger.error(f"Error listing tasklists: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @app.post("/tasklists")
 async def insert_tasklist(
     client: TaskClientDep,
@@ -109,6 +123,9 @@ async def insert_tasklist(
         logger.info(f"Successfully created tasklist with ID: {new_tasklist.id}")
 
         return format_tasklist_object(new_tasklist)
+    except ValueError as e:
+        logger.error(f"Conflict: Tasklist with title '{title}' already exists")
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error inserting tasklist '{title}': {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
