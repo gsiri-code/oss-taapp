@@ -104,13 +104,9 @@ def main() -> None:  # noqa: C901 # Just a test script
                 try:
                     # Recreate the task object with the stored data
                     raw_data_reinsert = json.dumps(stored_task_data)
-                    task_to_reinsert = task_client_api.task.get_task(
-                        task_id="temp", raw_data=raw_data_reinsert
-                    )
+                    task_to_reinsert = task_client_api.task.get_task(task_id="temp", raw_data=raw_data_reinsert)
                     # Reinsert the task
-                    reinserted_task = client.insert_task(
-                        test_tasklist.id, task_to_reinsert
-                    )
+                    reinserted_task = client.insert_task(test_tasklist.id, task_to_reinsert)
                     logger.info(
                         "Reinserted task: '%s' (ID: %s)",
                         reinserted_task.title,

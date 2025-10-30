@@ -14,7 +14,6 @@ import logging
 import os
 from pathlib import Path
 from typing import ClassVar
-from datetime import datetime
 
 import task_client_api
 from google.auth.exceptions import GoogleAuthError, RefreshError
@@ -76,9 +75,7 @@ class GTaskClient(task_client_api.Client):
     ]
     FAILURE_TO_CRED = "Failed to obtain credentials. Please check your setup."
 
-    def __init__(
-        self, service: Resource | None = None, *, interactive: bool = False
-    ) -> None:
+    def __init__(self, service: Resource | None = None, *, interactive: bool = False) -> None:
         """Initialize the GTaskClient, handling authentication."""
         self.logger = logging.getLogger(__name__)
         if service:
@@ -126,9 +123,8 @@ class GTaskClient(task_client_api.Client):
         opening the user's browser to complete authentication with Google.
         """
         if not Path(creds_path).exists():
-            raise FileNotFoundError(
-                f"'{creds_path}' not found. Cannot run interactive auth."
-            )  # noqa: EM102 TRY003
+            msg = f"'{creds_path}' not found. Cannot run interactive auth."
+            raise FileNotFoundError(msg)
         flow = InstalledAppFlow.from_client_secrets_file(
             creds_path,
             self.SCOPES,
@@ -149,9 +145,7 @@ class GTaskClient(task_client_api.Client):
         client_id = os.environ.get("TASKS_CLIENT_ID")
         client_secret = os.environ.get("TASKS_CLIENT_SECRET")
         refresh_token = os.environ.get("TASKS_REFRESH_TOKEN")
-        token_uri = os.environ.get(
-            "TASKS_TOKEN_URI", "https://oauth2.googleapis.com/token"
-        )
+        token_uri = os.environ.get("TASKS_TOKEN_URI", "https://oauth2.googleapis.com/token")
 
         if not (client_id and client_secret and refresh_token):
             return None
@@ -246,7 +240,7 @@ class GTaskClient(task_client_api.Client):
         """Insert a tasklist.
 
         Args:
-            tasklist: The tasklist to insert.
+            title: The name of the new tasklist.
 
         Returns:
             The inserted tasklist with updated fields (e.g., id, etag).
@@ -331,14 +325,13 @@ class GTaskClient(task_client_api.Client):
         else:
             return tasks
 
-    def insert_task(
-        self, tasklist_id: str, task_input: dict[str, str | bool | None]
-    ) -> task.Task:
+    def insert_task(self, tasklist_id: str, task_input: dict[str, str | bool | None]) -> task.Task:
         """Insert a task into a tasklist.
 
         Args:
             tasklist_id: The ID of the tasklist to insert the task into.
-            task: The task to insert.
+            task_input: Dictionary of task fields
+                        (e.g., title, notes, status, due, parent, previous).
 
         Returns:
             The inserted task with updated fields.

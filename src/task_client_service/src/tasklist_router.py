@@ -3,9 +3,9 @@
 import logging
 from typing import Annotated
 
+from dependencies import TaskClientDep
 from fastapi import APIRouter, Body, HTTPException
 
-from dependencies import TaskClientDep
 from task_client_api import TaskList
 
 logger = logging.getLogger(__name__)
@@ -57,9 +57,7 @@ async def insert_tasklist(
 
         return tasklist_to_dict(new_tasklist)
     except ValueError as e:
-        logger.critical(
-            "Conflict: Tasklist with title '%s' already exists", title, exc_info=True
-        )
+        logger.critical("Conflict: Tasklist with title '%s' already exists", title, exc_info=True)
         raise HTTPException(status_code=409, detail=str(e)) from e
     except Exception as e:
         logger.critical("Error inserting tasklist '%s': %s", title, e, exc_info=True)
@@ -71,40 +69,32 @@ async def delete_tasklist(
     client: TaskClientDep,
     tasklist_id: str,
 ) -> dict[str, str]:
-    """Delete a tasklist."""
-    logger.info("Received request to delete tasklist with ID: '%s'", tasklist_id)
+    """Delete a tasklist by ID."""
+    tasklists = client.list_tasklists()
+
+    if tasklists and tasklists[0].id == tasklist_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Error: Invalid request cannot delete default tasklist",
+        )
+
+    target_tasklist = next((tl for tl in tasklists if tl.id == tasklist_id), None)
+    if not target_tasklist:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Error: Tasklist '{tasklist_id}' not found",
+        )
+
     try:
-        # Find the tasklist to delete
-        target_tasklist: TaskList | None = None
-        tasklists: list[TaskList] = client.list_tasklists()
-
-        if tasklists[0].id == tasklist_id:
-            raise HTTPException(
-                status_code=400,
-                detail="Error: Invalid request cannot delete default tasklist",
-            )
-
-        # Check if the tasklist exists
-        for tasklist in tasklists:
-            if tasklist.id == tasklist_id:
-                target_tasklist = tasklist
-                break
-
-        if not target_tasklist:
-            raise HTTPException(
-                status_code=404, detail=f"Error: Tasklist '{tasklist_id}' not found"
-            )
-
         success = client.delete_tasklist(tasklist_id)
-
-        if not success:
-            raise Exception
-
-        logger.info("Successfully deleted tasklist with ID: %s", tasklist_id)
-
-        return {"detail": f"Tasklist '{target_tasklist.title}' deleted."}
     except Exception as e:
         logger.critical(
             "Error deleting tasklist '%s': %s", tasklist_id, e, exc_info=True
         )
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail="Failed to delete tasklist.") from e
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete tasklist.")
+
+    logger.info("Successfully deleted tasklist with ID: %s", tasklist_id)
+    return {"detail": f"Tasklist '{target_tasklist.title}' deleted."}

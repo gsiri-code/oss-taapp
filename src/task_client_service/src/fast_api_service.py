@@ -5,11 +5,11 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from task_router import router as task_router
+from tasklist_router import router as tasklist_router
 
 import gtask_client_impl  # noqa: F401
 from task_client_api import get_client
-from task_router import router as task_router
-from tasklist_router import router as tasklist_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application lifespan and initialize mail client."""
     logger.info("Starting Task Client Service...")
     try:
-        client = get_client(interactive=False)
+        client = get_client(interactive=True)
         app.state.task_client = client
         logger.info("Task client initialized successfully")
         yield
@@ -49,4 +49,4 @@ if __name__ == "__main__":
     import uvicorn
 
     logger.info("Starting FastAPI server...")
-    uvicorn.run("fast_api_service:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("fast_api_service:app", host="0.0.0.0", port=8000, reload=True) # noqa: S104
