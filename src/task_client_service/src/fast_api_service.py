@@ -10,7 +10,6 @@ from fastapi import Body, Depends, FastAPI, HTTPException, Request
 import gtask_client_impl  # noqa: F401
 from task_client_api import Client, Task, TaskList, get_client
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -53,7 +52,6 @@ TaskClientDep = Annotated[Client, Depends(get_task_client)]
 """
 TODO: 
 implement these:
-    - list_tasks
     - insert_task
     - delete_task
     - get_task
@@ -62,7 +60,7 @@ Done:
     - def list_tasklists(self) -> list[tasklist.TaskList]:
     - def list_tasklists(self) -> list[tasklist.TaskList]:
     - delete_tasklist
-
+    - list_tasks
 
 """
 
@@ -110,26 +108,6 @@ async def list_tasklists(client: TaskClientDep) -> list[dict[str, str]]:
     else:
         logger.info("Successfully formatted %d tasklists", len(formatted_tasklists))
         return formatted_tasklists
-
-
-@app.get("/tasks/{tasklist_id}")
-async def list_tasks(
-    client: TaskClientDep, tasklist_id: str
-) -> list[dict[str, str | None | bool]]:
-    """Get a list of messages from the mail client."""
-    logger.info("Received request to list tasklists")
-    try:
-        tasks = client.list_tasks(tasklist_id)
-
-        formatted_tasks: list[dict[str, str]] = []
-
-        formatted_tasks = [task_to_dict(task) for task in tasks]
-
-        return formatted_tasks
-
-    except Exception as e:
-        logger.critical(e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/tasklists")
@@ -196,6 +174,31 @@ async def delete_tasklist(
             "Error deleting tasklist '%s': %s", tasklist_id, e, exc_info=True
         )
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# --- TASK OPERATIONS ---
+
+
+@app.get("/tasks/{tasklist_id}")
+async def list_tasks(
+    client: TaskClientDep, tasklist_id: str
+) -> list[dict[str, str | None | bool]]:
+    """Get a list of messages from the mail client."""
+    logger.info("Received request to list tasklists")
+    try:
+        tasks = client.list_tasks(tasklist_id)
+
+        formatted_tasks: list[dict[str, str]] = []
+
+        formatted_tasks = [task_to_dict(task) for task in tasks]
+
+        return formatted_tasks
+
+    except Exception as e:
+        logger.critical(e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    # - insert_task
 
 
 if __name__ == "__main__":
