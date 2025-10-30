@@ -49,21 +49,6 @@ def get_task_client(request: Request) -> Client:
 # --- Define a type alias for reuse (from FastAPI docs) ---
 TaskClientDep = Annotated[Client, Depends(get_task_client)]
 
-"""
-TODO: 
-implement these:
-    - insert_task
-    - delete_task
-    - get_task
-
-Done:
-    - def list_tasklists(self) -> list[tasklist.TaskList]:
-    - def list_tasklists(self) -> list[tasklist.TaskList]:
-    - delete_tasklist
-    - list_tasks
-
-"""
-
 
 def tasklist_to_dict(tasklist: TaskList) -> dict[str, str]:
     """Convert a TaskList object to a JSON-serializable dictionary."""
@@ -168,7 +153,7 @@ async def delete_tasklist(
 
         logger.info("Successfully deleted tasklist with ID: %s", tasklist_id)
 
-        return {"detail": f"Tasklist '{target_tasklist.id}' deleted."}
+        return {"detail": f"Tasklist '{target_tasklist.title}' deleted."}
     except Exception as e:
         logger.critical(
             "Error deleting tasklist '%s': %s", tasklist_id, e, exc_info=True
@@ -235,7 +220,42 @@ async def delete_task(
         )
         raise HTTPException(status_code=500, detail=str(e)) from e
 
-    # - insert_task
+
+@app.post("/tasks/{tasklist_id}")
+async def insert_task(
+    client: TaskClientDep,
+    tasklist_id: str,
+    task_input: dict[str, str | None | bool] = Body(
+        ...,
+        example={
+            "title": "My New Task",
+            "notes": "This is a new task",
+            "status": "needsAction",
+            "due": "2025-11-15T00:00:00.000Z",
+        },
+    ),
+) -> dict[str, str | bool | None]:
+    """Insert a new task into a tasklist."""
+    logger.info(
+        "Received request to insert task with title: '%s' into tasklist: '%s'",
+        task_input["title"],
+        tasklist_id,
+    )
+    try:
+        new_task = client.insert_task(tasklist_id, task_input)
+    except Exception as e:
+        logger.critical(
+            "Error inserting task '%s' into tasklist '%s': %s",
+            task_input["title"],
+            tasklist_id,
+            e,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    else:
+
+        logger.info("Successfully created task with ID: %s", new_task.id)
+        return task_to_dict(new_task)
 
 
 
