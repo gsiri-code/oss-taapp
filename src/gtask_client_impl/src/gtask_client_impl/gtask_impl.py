@@ -345,17 +345,6 @@ class GTaskClient(task_client_api.Client):
 
         """
         try:
-            if task_input["due"]:
-                due_value = task_input["due"]
-                if isinstance(due_value, str):
-                    try:
-                        datetime.fromisoformat(due_value.replace("Z", "+00:00"))
-                    except ValueError:
-                        raise ValueError(
-                            f"Invalid RFC 3339 timestamp format: {due_value}"
-                        )
-                    else:
-                        task_input["due"] = due_value
             result = (
                 self.service.tasks()  # type: ignore[attr-defined]
                 .insert(tasklist=tasklist_id, body=task_input)
