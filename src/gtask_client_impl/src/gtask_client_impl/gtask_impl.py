@@ -14,6 +14,7 @@ import logging
 import os
 from pathlib import Path
 from typing import ClassVar
+from datetime import datetime
 
 import task_client_api
 from google.auth.exceptions import GoogleAuthError, RefreshError
@@ -331,9 +332,7 @@ class GTaskClient(task_client_api.Client):
             return tasks
 
     def insert_task(
-        self,
-        tasklist_id: str,
-        task: task.Task
+        self, tasklist_id: str, task_input: dict[str, str | bool | None]
     ) -> task.Task:
         """Insert a task into a tasklist.
 
@@ -346,30 +345,33 @@ class GTaskClient(task_client_api.Client):
 
         """
         try:
-            body: dict[str, str | None] = {
-                "title": task.title,
-            }
-            if task.notes:
-                body["notes"] = task.notes
-            if task.status:
-                body["status"] = task.status
-            if task.due:
-                body["due"] = task.due
-
+            if task_input["due"]:
+                due_value = task_input["due"]
+                if isinstance(due_value, str):
+                    try:
+                        datetime.fromisoformat(due_value.replace("Z", "+00:00"))
+                    except ValueError:
+                        raise ValueError(
+                            f"Invalid RFC 3339 timestamp format: {due_value}"
+                        )
+                    else:
+                        task_input["due"] = due_value
             result = (
                 self.service.tasks()  # type: ignore[attr-defined]
-                .insert(tasklist=tasklist_id, body=body)
+                .insert(tasklist=tasklist_id, body=task_input)
                 .execute()
             )
             raw_data = json.dumps(result)
-            return task_client_api.task.get_task(
-                task_id=result["id"],
-                raw_data=raw_data,
-            )
         except (HttpError, OSError, ValueError) as e:
             self.logger.exception("Failed to insert task")
             self.logger.debug("Error details: %s", e)
             raise
+        else:
+            self.logger.info("Successfully created task with ID: %s", result["id"])
+            return task_client_api.task.get_task(
+                task_id=result["id"],
+                raw_data=raw_data,
+            )
 
     def delete_task(self, tasklist_id: str, task_id: str) -> bool:
         """Delete a task by its ID.
