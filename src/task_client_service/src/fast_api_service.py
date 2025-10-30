@@ -5,8 +5,9 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Annotated, cast
 
-import gtask_client_impl  # noqa: F401
 from fastapi import Body, Depends, FastAPI, HTTPException, Request
+
+import gtask_client_impl  # noqa: F401
 from task_client_api import Client, Task, TaskList, get_client
 
 # Configure logging
@@ -27,7 +28,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Task client initialized successfully")
         yield
     except Exception as e:
-        logger.error(f"Failed to initialize task client: {e}")
+        logger.critical(e, exc_info=True)
         raise
     finally:
         logger.info("Shutting down Task Client Service...")
@@ -66,8 +67,8 @@ Done:
 """
 
 
-def format_tasklist_object(tasklist: TaskList) -> dict[str, str]:
-    """Format a TaskList object into a JSON-serializable dictionary."""
+def tasklist_to_dict(tasklist: TaskList) -> dict[str, str]:
+    """Convert a TaskList object to a JSON-serializable dictionary."""
     return {
         "id": tasklist.id,
         "title": tasklist.title,
@@ -77,57 +78,79 @@ def format_tasklist_object(tasklist: TaskList) -> dict[str, str]:
     }
 
 
+def task_to_dict(task: Task) -> dict[str, str | None | bool]:
+    """Convert a Task object to a JSON-serializable dictionary."""
+    return {
+        "id": task.id,
+        "title": task.title,
+        "notes": task.notes,
+        "status": task.status,
+        "due": task.due,
+        "completed": task.completed,
+        "deleted": task.deleted,
+        "hidden": task.hidden,
+    }
+
+
 @app.get("/tasklists")
 async def list_tasklists(client: TaskClientDep) -> list[dict[str, str]]:
     """Get a list of messages from the mail client."""
     logger.info("Received request to list tasklists")
     try:
         tasklists = client.list_tasklists()
-        logger.info(f"Retrieved {len(tasklists)} tasklists")
+        logger.info("Retrieved %d tasklists", len(tasklists))
 
         formatted_tasklists: list[dict[str, str]] = []
 
-        for tasklist in tasklists:
-            formatted_tasklists.append(format_tasklist_object(tasklist))
+        formatted_tasklists = [tasklist_to_dict(tasklist) for tasklist in tasklists]
 
-        logger.info(f"Successfully formatted {len(formatted_tasklists)} tasklists")
-        return formatted_tasklists
     except Exception as e:
-        logger.error(f"Error listing tasklists: {e}")
+        logger.critical(e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+    else:
+        logger.info("Successfully formatted %d tasklists", len(formatted_tasklists))
+        return formatted_tasklists
 
 
 @app.get("/tasks/{tasklist_id}")
-async def list_tasks(client: TaskClientDep, tasklist_id: str) -> list[dict[str, str]]:
+async def list_tasks(
+    client: TaskClientDep, tasklist_id: str
+) -> list[dict[str, str | None | bool]]:
     """Get a list of messages from the mail client."""
     logger.info("Received request to list tasklists")
     try:
-        tasklist = client.get_tasklist(tasklist_id)
+        tasks = client.list_tasks(tasklist_id)
 
-        client.list_tasks(tasklist)
+        formatted_tasks: list[dict[str, str]] = []
+
+        formatted_tasks = [task_to_dict(task) for task in tasks]
+
+        return formatted_tasks
 
     except Exception as e:
-        logger.error(f"Error listing tasklists: {e}")
+        logger.critical(e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/tasklists")
 async def insert_tasklist(
     client: TaskClientDep,
-    title: str = Body(..., example="My New Task List"),
+    title: str = Annotated[str, Body(..., example="My New Task List")],
 ) -> dict[str, str]:
     """Insert a new tasklist."""
-    logger.info(f"Received request to insert tasklist with title: '{title}'")
+    logger.info("Received request to insert tasklist with title: '%s'", title)
     try:
         new_tasklist = client.insert_tasklist(title)
-        logger.info(f"Successfully created tasklist with ID: {new_tasklist.id}")
+        logger.info("Successfully created tasklist with ID: %s", new_tasklist.id)
 
-        return format_tasklist_object(new_tasklist)
+        return tasklist_to_dict(new_tasklist)
     except ValueError as e:
-        logger.error(f"Conflict: Tasklist with title '{title}' already exists")
+        logger.critical(
+            "Conflict: Tasklist with title '%s' already exists", title, exc_info=True
+        )
         raise HTTPException(status_code=409, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Error inserting tasklist '{title}': {e}")
+        logger.critical("Error inserting tasklist '%s': %s", title, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -137,7 +160,7 @@ async def delete_tasklist(
     tasklist_id: str,
 ) -> dict[str, str]:
     """Delete a tasklist."""
-    logger.info(f"Received request to delete tasklist with ID: '{tasklist_id}'")
+    logger.info("Received request to delete tasklist with ID: '%s'", tasklist_id)
     try:
         # Find the tasklist to delete
         target_tasklist: TaskList | None = None
@@ -146,7 +169,7 @@ async def delete_tasklist(
         if tasklists[0].id == tasklist_id:
             raise HTTPException(
                 status_code=400,
-                detail=f"Error: Invalid request cannot delete default tasklist",
+                detail="Error: Invalid request cannot delete default tasklist",
             )
 
         # Check if the tasklist exists
@@ -165,11 +188,13 @@ async def delete_tasklist(
         if not success:
             raise Exception
 
-        logger.info(f"Successfully deleted tasklist with ID: {tasklist_id}")
+        logger.info("Successfully deleted tasklist with ID: %s", tasklist_id)
 
         return {"detail": f"Tasklist '{target_tasklist.id}' deleted."}
     except Exception as e:
-        logger.error(f"Error deleting tasklist '{tasklist_id}': {e}")
+        logger.critical(
+            "Error deleting tasklist '%s': %s", tasklist_id, e, exc_info=True
+        )
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
