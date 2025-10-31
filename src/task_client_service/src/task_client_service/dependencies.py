@@ -3,7 +3,6 @@
 from typing import Annotated, cast
 
 from fastapi import Depends, Request
-
 from task_client_api import Client
 
 

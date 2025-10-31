@@ -6,9 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Body, HTTPException
-
 import gtask_client_impl  # noqa: F401
+from fastapi import APIRouter, Body, HTTPException
 from task_client_api import Task as ServiceTask
 from task_client_api import get_task as get_service_task
 
@@ -100,12 +99,14 @@ async def insert_task(
     task_input: Annotated[
         dict[str, str | None | bool],
         Body(
-            example={
-                "title": "My New Task",
-                "notes": "This is a new task",
-                "status": "needsAction",
-                "due": "2025-11-15T00:00:00.000Z",
-            }
+            examples=[
+                {
+                    "title": "My New Task",
+                    "notes": "This is a new task",
+                    "status": "needsAction",
+                    "due": "2025-11-15T00:00:00.000Z",
+                }
+            ]
         ),
     ],
 ) -> dict[str, str | bool | None]:
@@ -122,9 +123,9 @@ async def insert_task(
 
         raw_data = json.dumps(task_input)
 
-        new_task: ServiceTask = get_service_task(raw_data)
+        input_task: ServiceTask = get_service_task(raw_data)
 
-        client.insert_task(tasklist_id, new_task)
+        created_task: ServiceTask = client.insert_task(tasklist_id, input_task)
     except ValueError as e:
         logger.critical(
             "Error inserting task '%s' into tasklist '%s': %s",
@@ -145,8 +146,8 @@ async def insert_task(
         )
         raise HTTPException(status_code=500, detail=str(e)) from e
     else:
-        logger.info("Successfully created task with ID: %s", new_task.id)
-        return task_to_dict(new_task)
+        logger.info("Successfully created task with ID: %s", created_task.id)
+        return task_to_dict(created_task)
 
 
 @router.delete("/{tasklist_id}/{task_id}")

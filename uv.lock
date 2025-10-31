@@ -1405,7 +1405,21 @@ source = { editable = "src/task_client_api" }
 [[package]]
 name = "task-client-service"
 version = "0.1.0"
-source = { virtual = "src/task_client_service" }
+source = { editable = "src/task_client_service" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "gtask-client-impl" },
+    { name = "task-client-api" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "gtask-client-impl", editable = "src/gtask_client_impl" },
+    { name = "task-client-api", editable = "src/task_client_api" },
+    { name = "uvicorn", specifier = ">=0.30.0" },
+]
 
 [[package]]
 name = "tomli"

@@ -2,10 +2,9 @@
 
 import json
 import logging
-from typing import Annotated, Any, TypedDict
+from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException
-
 from task_client_api import TaskList as ServiceTaskList
 from task_client_api import get_tasklist as get_service_tasklist
 
@@ -14,12 +13,6 @@ from .dependencies import TaskClientDep
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tasklists", tags=["tasklists"])
-
-
-class CreateTaskListBody(TypedDict):
-    """Body schema for creating a tasklist."""
-
-    title: str
 
 
 def tasklist_to_dict(tasklist: ServiceTaskList) -> dict[str, str]:
@@ -53,28 +46,15 @@ async def list_tasklists(client: TaskClientDep) -> list[dict[str, str]]:
         return formatted_tasklists
 
 
-def _get_str(d: dict[str, Any], key: str, default: str | None = None) -> str | None:
-    v = d.get(key)
-    if isinstance(v, str):
-        return v
-    return default
-
-
-def _get_bool(d: dict[str, Any], key: str) -> bool | None:
-    v = d.get(key)
-    return v if isinstance(v, bool) else None
-
-
 @router.post("")
 async def insert_tasklist(
     client: TaskClientDep,
     body: Annotated[
-        CreateTaskListBody,
+        dict[str, str],
         Body(
             examples=[
                 {
-                    "summary": "Basic",
-                    "value": {"title": "My New Task List"},
+                    "title": "My New Task List",
                 }
             ]
         ),
@@ -125,9 +105,11 @@ async def delete_tasklist(
     except Exception as e:  # unexpected failures from the client
         logger.exception("Error deleting tasklist '%s'", tasklist_id)
         raise HTTPException(status_code=500, detail="Internal error while deleting tasklist") from e
+    else:
+        if not success:
+            raise HTTPException(
+                status_code=500, detail=f"Failed to delete tasklist '{tasklist_id}'"
+            )
 
-    if not success:
-        raise HTTPException(status_code=500, detail=f"Failed to delete tasklist '{tasklist_id}'")
-
-    logger.info("Successfully deleted tasklist with ID: %s", tasklist_id)
-    return {"detail": f"Tasklist '{target_tasklist.title}' deleted."}
+        logger.info("Successfully deleted tasklist with ID: %s", tasklist_id)
+        return {"detail": f"Tasklist '{target_tasklist.title}' deleted."}
