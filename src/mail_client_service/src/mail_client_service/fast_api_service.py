@@ -12,7 +12,7 @@ from mail_client_api import Client, Message, get_client
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application lifespan and initialize mail client."""
-    client = get_client(interactive=True)
+    client = get_client(interactive=False)
     app.state.mail_client = client
     yield
 

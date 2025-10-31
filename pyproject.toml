@@ -60,6 +60,7 @@ mypy_path = [
     "src/mail_client_service_client/src",
     "src/task_client_api/src",
     "src/gtask_client_impl/src",
+    "src/task_client_service/src",
 ]
 
 ignore_missing_imports = false

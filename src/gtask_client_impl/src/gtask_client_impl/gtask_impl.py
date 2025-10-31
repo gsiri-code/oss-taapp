@@ -75,7 +75,9 @@ class GTaskClient(task_client_api.Client):
     ]
     FAILURE_TO_CRED = "Failed to obtain credentials. Please check your setup."
 
-    def __init__(self, service: Resource | None = None, *, interactive: bool = False) -> None:
+    def __init__(
+        self, service: Resource | None = None, *, interactive: bool = False
+    ) -> None:
         """Initialize the GTaskClient, handling authentication."""
         self.logger = logging.getLogger(__name__)
         if service:
@@ -145,7 +147,9 @@ class GTaskClient(task_client_api.Client):
         client_id = os.environ.get("TASKS_CLIENT_ID")
         client_secret = os.environ.get("TASKS_CLIENT_SECRET")
         refresh_token = os.environ.get("TASKS_REFRESH_TOKEN")
-        token_uri = os.environ.get("TASKS_TOKEN_URI", "https://oauth2.googleapis.com/token")
+        token_uri = os.environ.get(
+            "TASKS_TOKEN_URI", "https://oauth2.googleapis.com/token"
+        )
 
         if not (client_id and client_secret and refresh_token):
             return None
@@ -240,7 +244,7 @@ class GTaskClient(task_client_api.Client):
         """Insert a tasklist.
 
         Args:
-            tl: TaskList carrying the title to create.
+            tasklist: TaskList carrying the title to create.
 
         Returns:
             The created TaskList as returned by the API.
@@ -270,9 +274,7 @@ class GTaskClient(task_client_api.Client):
         """
         try:
             result = (
-                self.service.tasklists()  # type: ignore[attr-defined]
-                .list()
-                .execute()
+                self.service.tasklists().list().execute()  # type: ignore[attr-defined]
             )
             tasklists = []
             for item in result.get("items", []):
@@ -323,7 +325,7 @@ class GTaskClient(task_client_api.Client):
 
         Args:
             tasklist_id: The ID of the tasklist to insert the task into.
-            task_input: Dictionary of task fields
+            task: Task carrying the title to create.
                         (e.g., title, notes, status, due, parent, previous).
 
         Returns:
@@ -331,24 +333,20 @@ class GTaskClient(task_client_api.Client):
 
         """
         try:
-            if task_input["due"]:
-                due_value = task_input["due"]
-                if isinstance(due_value, str):
-                    try:
-                        datetime.fromisoformat(due_value.replace("Z", "+00:00"))
-                    except ValueError:
-                        raise ValueError(
-                            f"Invalid RFC 3339 timestamp format: {due_value}"
-                        )
-                    else:
-                        task_input["due"] = due_value
+            body: dict[str, str | None] = {
+                "title": task.title,
+            }
+            if task.notes:
+                body["notes"] = task.notes
+            if task.status:
+                body["status"] = task.status
+            if task.due:
+                body["due"] = task.due
+
             result = (
-                self.service.tasks()  # type: ignore[attr-defined]
-                .insert(tasklist=tasklist_id, body=body)
-                .execute()
+                self.service.tasks().insert(tasklist=tasklist_id, body=body).execute()
             )
             raw_data = json.dumps(result)
-            return task_client_api.task.get_task(raw_data=raw_data)
         except (HttpError, OSError, ValueError) as e:
             self.logger.exception("Failed to insert task")
             self.logger.debug("Error details: %s", e)
@@ -356,7 +354,6 @@ class GTaskClient(task_client_api.Client):
         else:
             self.logger.info("Successfully created task with ID: %s", result["id"])
             return task_client_api.task.get_task(
-                task_id=result["id"],
                 raw_data=raw_data,
             )
 

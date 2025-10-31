@@ -50,4 +50,4 @@ if __name__ == "__main__":
     import uvicorn
 
     logger.info("Starting FastAPI server...")
-    uvicorn.run("fast_api_service:app", host="0.0.0.0", port=8000, reload=True) # noqa: S104
+    uvicorn.run("fast_api_service:app", host="127.0.0.1", port=8000, reload=True)
