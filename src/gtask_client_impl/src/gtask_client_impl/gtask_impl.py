@@ -240,10 +240,10 @@ class GTaskClient(task_client_api.Client):
         """Insert a tasklist.
 
         Args:
-            title: The name of the new tasklist.
+            tl: TaskList carrying the title to create.
 
         Returns:
-            The inserted tasklist with updated fields (e.g., id, etag).
+            The created TaskList as returned by the API.
 
         """
         try:
@@ -344,7 +344,7 @@ class GTaskClient(task_client_api.Client):
                         task_input["due"] = due_value
             result = (
                 self.service.tasks()  # type: ignore[attr-defined]
-                .insert(tasklist=tasklist_id, body=task_input)
+                .insert(tasklist=tasklist_id, body=body)
                 .execute()
             )
             raw_data = json.dumps(result)
