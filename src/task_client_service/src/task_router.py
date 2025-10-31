@@ -1,18 +1,30 @@
 """Router for task operations."""
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Annotated, NotRequired, Required, TypedDict
+from typing import Annotated, Any, NotRequired, Required, TypedDict
 
-from dependencies import TaskClientDep
 from fastapi import APIRouter, Body, HTTPException
 
 from task_client_api import Task
+
+from .dependencies import TaskClientDep
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
+@dataclass
+class _NewTask:
+    id: str | None
+    title: str
+    notes: str | None = None
+    due: str | None = None
+    completed: str | None = None
+    status: str | None = None
+    deleted: bool | None = None
+    hidden: bool | None = None
 
 def task_to_dict(task: Task) -> dict[str, str | None | bool]:
     """Convert a Task object to a JSON-serializable dictionary."""
@@ -82,6 +94,15 @@ async def get_task(
             "hidden": task.hidden,
         }
 
+def _get_str(d: dict[str, Any], key: str, default: str | None = None) -> str | None:
+    v = d.get(key)
+    if isinstance(v, str):
+        return v
+    return default
+
+def _get_bool(d: dict[str, Any], key: str) -> bool | None:
+    v = d.get(key)
+    return v if isinstance(v, bool) else None
 
 @router.post("/{tasklist_id}")
 async def insert_task(
@@ -119,7 +140,18 @@ async def insert_task(
                     msg = f"Invalid RFC 3339 timestamp format: {due_value}"
                     raise ValueError(msg) from err
 
-        new_task = client.insert_task(tasklist_id, task_input)
+        new_task_obj = _NewTask(
+            id=None,
+            title=_get_str(task_input, "title", "") or "",
+            notes=_get_str(task_input, "notes"),
+            due=_get_str(task_input, "due"),
+            completed=_get_str(task_input, "completed"),
+            status=_get_str(task_input, "status"),
+            deleted=_get_bool(task_input, "deleted"),
+            hidden=_get_bool(task_input, "hidden"),
+        )
+        # _NewTask is not the exact nominal type of tasks_api.Task, so silence type check here
+        new_task = client.insert_task(tasklist_id, new_task_obj)  # type: ignore[arg-type]
     except Exception as e:
         logger.critical(
             "Error inserting task '%s' into tasklist '%s': %s",

@@ -5,11 +5,12 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from task_router import router as task_router
-from tasklist_router import router as tasklist_router
 
 import gtask_client_impl  # noqa: F401
 from task_client_api import get_client
+
+from .task_router import router as task_router
+from .tasklist_router import router as tasklist_router
 
 logging.basicConfig(
     level=logging.INFO,

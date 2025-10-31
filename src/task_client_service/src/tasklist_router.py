@@ -1,16 +1,23 @@
 """Router for tasklist operations."""
 
 import logging
-from typing import Annotated
+from typing import Annotated, Any, TypedDict
 
-from dependencies import TaskClientDep
 from fastapi import APIRouter, Body, HTTPException
 
 from task_client_api import TaskList
+from task_client_api import tasklist as tasklist_model
+
+from .dependencies import TaskClientDep
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tasklists", tags=["tasklists"])
+
+class CreateTaskListBody(TypedDict):
+    """Body schema for creating a tasklist."""
+
+    title: str
 
 
 def tasklist_to_dict(tasklist: TaskList) -> dict[str, str]:
@@ -43,18 +50,36 @@ async def list_tasklists(client: TaskClientDep) -> list[dict[str, str]]:
         logger.info("Successfully formatted %d tasklists", len(formatted_tasklists))
         return formatted_tasklists
 
+def _get_str(d: dict[str, Any], key: str, default: str | None = None) -> str | None:
+    v = d.get(key)
+    if isinstance(v, str):
+        return v
+    return default
+
+def _get_bool(d: dict[str, Any], key: str) -> bool | None:
+    v = d.get(key)
+    return v if isinstance(v, bool) else None
 
 @router.post("")
 async def insert_tasklist(
     client: TaskClientDep,
-    title: str = Annotated[str, Body(..., example="My New Task List")],
+    body: Annotated[
+        CreateTaskListBody,
+        Body(
+            examples=[{
+                "summary": "Basic",
+                "value": {"title": "My New Task List"},
+            }]
+        ),
+    ],
 ) -> dict[str, str]:
-    """Insert a new tasklist."""
+    """Create a new tasklist."""
+    title = body["title"]
     logger.info("Received request to insert tasklist with title: '%s'", title)
     try:
-        new_tasklist = client.insert_tasklist(title)
+        tl = tasklist_model.get_tasklist(task_list_id="", raw_data='{"title": "' + title + '"}')
+        new_tasklist = client.insert_tasklist(tl)
         logger.info("Successfully created tasklist with ID: %s", new_tasklist.id)
-
         return tasklist_to_dict(new_tasklist)
     except ValueError as e:
         logger.critical("Conflict: Tasklist with title '%s' already exists", title, exc_info=True)

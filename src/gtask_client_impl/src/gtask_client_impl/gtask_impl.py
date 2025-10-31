@@ -236,18 +236,18 @@ class GTaskClient(task_client_api.Client):
         else:
             return True
 
-    def insert_tasklist(self, title: str) -> tasklist.TaskList:
+    def insert_tasklist(self, tl: tasklist.TaskList) -> tasklist.TaskList:
         """Insert a tasklist.
 
         Args:
-            title: The name of the new tasklist.
+            tl: TaskList carrying the title to create.
 
         Returns:
-            The inserted tasklist with updated fields (e.g., id, etag).
+            The created TaskList as returned by the API.
 
         """
         try:
-            body = {"title": title}
+            body = {"title": tl.title}
             result = (
                 self.service.tasklists()  # type: ignore[attr-defined]
                 .insert(body=body)
@@ -325,7 +325,27 @@ class GTaskClient(task_client_api.Client):
         else:
             return tasks
 
-    def insert_task(self, tasklist_id: str, task_input: dict[str, str | bool | None]) -> task.Task:
+    def insert_task(self, tasklist_id: str, t: task.Task) -> task.Task:
+        """Insert a task into a tasklist.
+
+        Args:
+            tasklist_id: ID of the target tasklist.
+            t: Task data to create.
+
+        Returns:
+            The created Task as returned by the API.
+
+        """
+        body = {
+            "title": t.title,
+            "notes": getattr(t, "notes", None),
+            "due": getattr(t, "due", None),
+            "completed": getattr(t, "completed", None),
+            "status": getattr(t, "status", None),
+            "deleted": getattr(t, "deleted", None),
+            "hidden": getattr(t, "hidden", None),
+            "parent": getattr(t, "parent", None),
+        }
         """Insert a task into a tasklist.
 
         Args:
@@ -340,7 +360,7 @@ class GTaskClient(task_client_api.Client):
         try:
             result = (
                 self.service.tasks()  # type: ignore[attr-defined]
-                .insert(tasklist=tasklist_id, body=task_input)
+                .insert(tasklist=tasklist_id, body=body)
                 .execute()
             )
             raw_data = json.dumps(result)
