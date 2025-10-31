@@ -56,7 +56,7 @@ class TestEdgeCases:
 
     def test_very_long_etag(self) -> None:
         """Test handling of very long ETag."""
-        long_etag = "W/\"etag_value_" + "x" * 500 + "\""
+        long_etag = 'W/"etag_value_' + "x" * 500 + '"'
         tasklist_data = {
             "id": "longetag123",
             "title": "Long ETag Test",
@@ -245,7 +245,9 @@ class TestEdgeCases:
 
     def test_tasklist_with_complex_self_link(self) -> None:
         """Test tasklist with complex selfLink URL."""
-        complex_link = "https://www.googleapis.com/tasks/v1/users/@me/lists/tasklist123?fields=id,title"
+        complex_link = (
+            "https://www.googleapis.com/tasks/v1/users/@me/lists/tasklist123?fields=id,title"
+        )
         tasklist_data = {
             "id": "complexlink123",
             "title": "Complex Self Link Test",
@@ -260,9 +262,9 @@ class TestEdgeCases:
     def test_tasklist_with_etag_variations(self) -> None:
         """Test tasklist with different ETag formats."""
         etag_variations = [
-            "W/\"etag_value\"",
+            'W/"etag_value"',
             "etag_simple",
-            "W/\"etag_with_special_chars_!@#$%\"",
+            'W/"etag_with_special_chars_!@#$%"',
         ]
 
         for etag in etag_variations:
@@ -276,4 +278,3 @@ class TestEdgeCases:
             tasklist = GTaskList(raw_data=raw_data)
 
             assert tasklist.etag == etag
-

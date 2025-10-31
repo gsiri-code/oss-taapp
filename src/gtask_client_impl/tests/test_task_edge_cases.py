@@ -38,6 +38,7 @@ class TestEdgeCases:
 
         assert "Unicode Test" in task.title
         assert "🎉" in task.title
+        assert task.notes is not None
         assert "こんにちは 世界! 🌍" in task.notes
         assert "Café naïve résumé" in task.notes
 
@@ -68,6 +69,7 @@ class TestEdgeCases:
         task = GTask(raw_data=raw_data)
 
         assert task.title == "Long Notes Test"
+        assert task.notes is not None
         assert len(task.notes) > self.VERY_LONG_NOTES_MIN_LENGTH
         assert "This is a very very long note." in task.notes
 

@@ -17,9 +17,7 @@ def test_register_binds_factories(monkeypatch: pytest.MonkeyPatch) -> None:
     tasklist_protocol_module = importlib.import_module("task_client_api.tasklist")
 
     # Reset to protocol defaults before invoking register.
-    monkeypatch.setattr(
-        task_client_api, "get_client", client_protocol.get_client, raising=False
-    )
+    monkeypatch.setattr(task_client_api, "get_client", client_protocol.get_client, raising=False)
     monkeypatch.setattr(
         task_protocol,
         "get_task",
@@ -52,4 +50,3 @@ def test_register_binds_factories(monkeypatch: pytest.MonkeyPatch) -> None:
     assert task_client_api.get_task is gtask_client_impl.get_task_impl
     assert tasklist_protocol.get_tasklist is gtask_client_impl.get_tasklist_impl
     assert task_client_api.get_tasklist is gtask_client_impl.get_tasklist_impl
-

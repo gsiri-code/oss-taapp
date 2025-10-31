@@ -411,4 +411,3 @@ class TestGTaskClientConstants:
         )
         assert isinstance(GTaskClient.FAILURE_TO_CRED, str)
         assert len(GTaskClient.FAILURE_TO_CRED) > 0
-

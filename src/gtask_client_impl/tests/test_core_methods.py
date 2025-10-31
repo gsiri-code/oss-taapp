@@ -274,7 +274,6 @@ class TestGTaskClientTaskOperations:
             "status": "needsAction",
             "due": "2024-12-31T00:00:00Z",
         }
-        raw_content = json.dumps(task_data)
 
         # Mock task object with all fields
         mock_task_input = Mock()
@@ -530,4 +529,3 @@ class TestGTaskClientTaskListOperations:
 
         # ASSERT
         assert result is False
-

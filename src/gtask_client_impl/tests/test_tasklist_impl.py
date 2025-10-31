@@ -67,13 +67,13 @@ class TestGTaskList:
         tasklist_data = {
             "id": "etag123",
             "title": "TaskList with ETag",
-            "etag": "W/\"etag_value_123\"",
+            "etag": 'W/"etag_value_123"',
         }
 
         raw_data = json.dumps(tasklist_data)
         tasklist = GTaskList(raw_data=raw_data)
 
-        assert tasklist.etag == "W/\"etag_value_123\""
+        assert tasklist.etag == 'W/"etag_value_123"'
 
     def test_tasklist_with_updated_timestamp(self) -> None:
         """Test tasklist with updated timestamp (RFC 3339)."""
@@ -119,4 +119,3 @@ class TestGTaskList:
         assert tasklist.etag == ""
         assert tasklist.updated == ""
         assert tasklist.self_link == ""
-
