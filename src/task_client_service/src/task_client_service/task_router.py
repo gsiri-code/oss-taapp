@@ -2,7 +2,6 @@
 
 import json
 import logging
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated
 
@@ -16,18 +15,6 @@ from .dependencies import TaskClientDep
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
-
-
-@dataclass
-class _NewTask:
-    id: str | None
-    title: str
-    notes: str | None = None
-    due: str | None = None
-    completed: str | None = None
-    status: str | None = None
-    deleted: bool | None = None
-    hidden: bool | None = None
 
 
 def task_to_dict(task: ServiceTask) -> dict[str, str | bool | None]:
