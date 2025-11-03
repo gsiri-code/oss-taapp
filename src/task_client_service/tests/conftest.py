@@ -1,42 +1,25 @@
 """Test configuration for task client service (Google Tasks)."""
 
-import sys
-
-# need this part to find src/task_client_service in this file. Neet TYPE_CHECKING to avoid mypy error
-from typing import TYPE_CHECKING
-
-if not TYPE_CHECKING:
-    import sys
-    from pathlib import Path
-
-    sys.path.insert(0, str(Path("src/gmail_client_impl/src").resolve()))
-
 from collections.abc import Callable
 from enum import Enum
 from typing import cast
 from unittest.mock import Mock, create_autospec
 
 import pytest
-from dependencies import get_task_client  # type: ignore[import-not-found]
-from fast_api_service import app  # type: ignore[import-not-found]
 from fastapi.testclient import TestClient
-from task_client_api.client import Client  # type: ignore[import-not-found]
-from task_client_api.task import Task as TaskEg  # type: ignore[import-not-found]
-from task_client_api.tasklist import TaskList as TaskListEg  # type: ignore[import-not-found]
+from task_client_api import Client
+from task_client_api import Task as ServiceTask
+from task_client_api import TaskList as ServiceTaskList
+
+from task_client_service import app, get_task_client
 
 
 class HTTPStatus(Enum):
     """HTTP status codes used in the API."""
 
     OK = 200
-    CREATED = 201
-    ACCEPTED = 202
-    NO_CONTENT = 204
     BAD_REQUEST = 400
-    UNAUTHORIZED = 401
-    FORBIDDEN = 403
     NOT_FOUND = 404
-    METHOD_NOT_ALLOWED = 405
     CONFLICT = 409
     INTERNAL_SERVER_ERROR = 500
 
@@ -50,6 +33,7 @@ def http_status() -> type[HTTPStatus]:
 @pytest.fixture
 def create_mock_tasklist() -> Callable[..., Mock]:
     """Create a mock TaskList object matching the TaskList contract."""
+
     def _create_mock_tasklist(
         tl_id: str,
         title: str,
@@ -58,19 +42,21 @@ def create_mock_tasklist() -> Callable[..., Mock]:
         updated: str = "2025-01-01T00:00:00.000Z",
         self_link: str = "https://example.com/tasks/lists/tl_id",
     ) -> Mock:
-        mock_tl = create_autospec(TaskListEg, spec_set=True, instance=True)
+        mock_tl = create_autospec(ServiceTaskList, spec_set=True, instance=True)
         mock_tl.id = tl_id
         mock_tl.title = title
         mock_tl.etag = etag
         mock_tl.updated = updated
         mock_tl.self_link = self_link
         return cast("Mock", mock_tl)
+
     return _create_mock_tasklist
 
 
 @pytest.fixture
 def create_mock_task() -> Callable[..., Mock]:
     """Create a mock Task object matching the Task contract."""
+
     def _create_mock_task(  # noqa: PLR0913
         task_id: str,
         title: str,
@@ -82,7 +68,7 @@ def create_mock_task() -> Callable[..., Mock]:
         deleted: bool = False,
         hidden: bool = False,
     ) -> Mock:
-        mock_task = create_autospec(TaskEg, spec_set=True, instance=True)
+        mock_task = create_autospec(ServiceTask, spec_set=True, instance=True)
         mock_task.id = task_id
         mock_task.title = title
         mock_task.notes = notes
@@ -92,6 +78,7 @@ def create_mock_task() -> Callable[..., Mock]:
         mock_task.deleted = deleted
         mock_task.hidden = hidden
         return cast("Mock", mock_task)
+
     return _create_mock_task
 
 
