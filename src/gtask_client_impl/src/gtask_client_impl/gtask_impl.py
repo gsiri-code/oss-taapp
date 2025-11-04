@@ -75,9 +75,7 @@ class GTaskClient(task_client_api.Client):
     ]
     FAILURE_TO_CRED = "Failed to obtain credentials. Please check your setup."
 
-    def __init__(
-        self, service: Resource | None = None, *, interactive: bool = False
-    ) -> None:
+    def __init__(self, service: Resource | None = None, *, interactive: bool = False) -> None:
         """Initialize the GTaskClient, handling authentication."""
         self.logger = logging.getLogger(__name__)
         if service:
@@ -147,9 +145,7 @@ class GTaskClient(task_client_api.Client):
         client_id = os.environ.get("TASKS_CLIENT_ID")
         client_secret = os.environ.get("TASKS_CLIENT_SECRET")
         refresh_token = os.environ.get("TASKS_REFRESH_TOKEN")
-        token_uri = os.environ.get(
-            "TASKS_TOKEN_URI", "https://oauth2.googleapis.com/token"
-        )
+        token_uri = os.environ.get("TASKS_TOKEN_URI", "https://oauth2.googleapis.com/token")
 
         if not (client_id and client_secret and refresh_token):
             return None
@@ -344,7 +340,7 @@ class GTaskClient(task_client_api.Client):
                 body["due"] = task.due
 
             result = (
-                self.service.tasks().insert(tasklist=tasklist_id, body=body).execute()
+                self.service.tasks().insert(tasklist=tasklist_id, body=body).execute()  # type: ignore[attr-defined]
             )
             raw_data = json.dumps(result)
         except (HttpError, OSError, ValueError) as e:

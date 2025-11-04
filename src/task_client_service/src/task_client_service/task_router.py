@@ -61,7 +61,9 @@ async def get_task(
     task_id: str,
 ) -> dict[str, str | None | bool]:
     """Read a single task from a given tasklist."""
-    logger.info("Recievd request to get task '%s' from tasklist '%s'", task_id, tasklist_id)
+    logger.info(
+        "Recievd request to get task '%s' from tasklist '%s'", task_id, tasklist_id
+    )
     try:
         task = client.get_task(tasklist_id, task_id)
         formatted_task = task_to_dict(task)
@@ -75,7 +77,9 @@ async def get_task(
         )
         raise HTTPException(status_code=500, detail=str(e)) from e
     else:
-        logger.info("Successfully retrieved task '%s' from tasklist '%s'", task_id, tasklist_id)
+        logger.info(
+            "Successfully retrieved task '%s' from tasklist '%s'", task_id, tasklist_id
+        )
         return formatted_task
 
 
@@ -104,25 +108,33 @@ async def insert_task(
         tasklist_id,
     )
     try:
-        if isinstance(task_input["due"], str):
-            due_date = datetime.fromisoformat(task_input["due"])
-            task_input["due"] = due_date.isoformat()
+        # Validate and normalize due date if provided
+        if task_input.get("due") and isinstance(task_input["due"], str):
+            try:
+                due_date = datetime.fromisoformat(task_input["due"])
+                task_input["due"] = due_date.isoformat()
+            except ValueError as date_error:
+                logger.critical(
+                    "Invalid due date format for task '%s' in tasklist '%s': %s",
+                    task_input.get("title", "Unknown"),
+                    tasklist_id,
+                    date_error,
+                    exc_info=True,
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"""Invalid due date format: {date_error!s}.
+                    Expected ISO format (e.g., '2025-11-15T00:00:00.000Z')""",
+                ) from date_error
 
         raw_data = json.dumps(task_input)
 
         input_task: ServiceTask = get_service_task(raw_data)
 
         created_task: ServiceTask = client.insert_task(tasklist_id, input_task)
-    except ValueError as e:
-        logger.critical(
-            "Error inserting task '%s' into tasklist '%s': %s",
-            task_input.get("title", "Unknown"),
-            tasklist_id,
-            e,
-            exc_info=True,
-        )
-        raise HTTPException(status_code=400, detail=str(e)) from e
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.critical(
             "Error inserting task '%s' into tasklist '%s': %s",
@@ -144,9 +156,13 @@ async def delete_task(
     task_id: str,
 ) -> dict[str, str]:
     """Mark a task as deleted."""
-    logger.info("Recieved request to  delete task '%s' from tasklist '%s'", task_id, tasklist_id)
+    logger.info(
+        "Recieved request to  delete task '%s' from tasklist '%s'", task_id, tasklist_id
+    )
     if not client.delete_task(tasklist_id, task_id):
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
 
-    logger.info("Successfully deleted task '%s' from tasklist '%s'", task_id, tasklist_id)
+    logger.info(
+        "Successfully deleted task '%s' from tasklist '%s'", task_id, tasklist_id
+    )
     return {"detail": f"Task '{task_id}' deleted from tasklist '{tasklist_id}'."}

@@ -7,21 +7,38 @@ from unittest.mock import Mock, create_autospec
 
 import pytest
 from fastapi.testclient import TestClient
-from task_client_api import Client
 from task_client_api import Task as ServiceTask
 from task_client_api import TaskList as ServiceTaskList
+from task_client_api.client import Client
 
-from task_client_service import app, get_task_client
+from task_client_service import app
+from task_client_service.dependencies import get_task_client
 
 
 class HTTPStatus(Enum):
     """HTTP status codes used in the API."""
 
     OK = 200
+    CREATED = 201
+    ACCEPTED = 202
+    NO_CONTENT = 204
     BAD_REQUEST = 400
+    UNAUTHORIZED = 401
+    FORBIDDEN = 403
     NOT_FOUND = 404
+    METHOD_NOT_ALLOWED = 405
     CONFLICT = 409
     INTERNAL_SERVER_ERROR = 500
+
+
+def assert_response_matches_mock(
+    data: dict[str, str | bool | None], mock_obj: Mock
+) -> None:
+    """Assert that the data matches the mock object."""
+    for key, value in data.items():
+        assert value == getattr(
+            mock_obj, key
+        ), f"Mismatch for key '{key}': expected {getattr(mock_obj, key)}, got {value}"
 
 
 @pytest.fixture
@@ -83,13 +100,13 @@ def create_mock_task() -> Callable[..., Mock]:
 
 
 @pytest.fixture
-def mock_task_client() -> Client:
+def mock_task_client() -> Mock:
     """Provide a mock task client."""
-    return cast("Client", create_autospec(Client, spec_set=True, instance=True))
+    return cast("Mock", create_autospec(Client, spec_set=True, instance=True))
 
 
 @pytest.fixture
-def client(mock_task_client: Mock) -> TestClient:
+def service_client(mock_task_client: Mock) -> TestClient:
     """Provide a test client with mocked dependencies."""
     app.dependency_overrides[get_task_client] = lambda: mock_task_client
     return TestClient(app)
