@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "task-client-service-client"
+name = "task_client_service_client"
 version = "0.1.0"
 description = "A client library for accessing Task Client Service"
 authors = []

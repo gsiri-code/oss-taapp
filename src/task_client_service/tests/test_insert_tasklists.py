@@ -35,6 +35,7 @@ class TestInsertTasklist:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Happy path: service builds tasklist and client inserts it."""
+
         def fake_get_service_tasklist(_: str) -> _DummyTasklist:
             return _DummyTasklist("generated-id", "My New Task List")
 
@@ -58,6 +59,7 @@ class TestInsertTasklist:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """If client raises ValueError, router should return 409."""
+
         def fake_get_service_tasklist(_: str) -> _DummyTasklist:
             return _DummyTasklist("dup-id", "Dup Title")
 
@@ -80,6 +82,7 @@ class TestInsertTasklist:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """If client raises non-ValueError, router should return 500."""
+
         def fake_get_service_tasklist(_: str) -> _DummyTasklist:
             return _DummyTasklist("some-id", "Err Title")
 

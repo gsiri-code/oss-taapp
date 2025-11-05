@@ -30,10 +30,7 @@ def test_delete_task_success(
     assert http_status(response.status_code) == http_status.OK
     data = response.json()
     assert "detail" in data
-    assert (
-        f"Task '{mock_task.id}' deleted from tasklist '{mock_tasklist.id}'."
-        in data["detail"]
-    )
+    assert f"Task '{mock_task.id}' deleted from tasklist '{mock_tasklist.id}'." in data["detail"]
 
     mock_task_client.delete_task.assert_called_once_with(mock_tasklist.id, mock_task.id)
 
@@ -61,9 +58,7 @@ def test_delete_task_not_found(
     assert "detail" in data
     assert f"Task '{nonexistent_task_id}' not found" in data["detail"]
 
-    mock_task_client.delete_task.assert_called_once_with(
-        mock_tasklist.id, nonexistent_task_id
-    )
+    mock_task_client.delete_task.assert_called_once_with(mock_tasklist.id, nonexistent_task_id)
 
 
 def test_delete_task_tasklist_not_found(
@@ -88,6 +83,4 @@ def test_delete_task_tasklist_not_found(
     assert "detail" in data
     assert f"Task '{task_id}' not found" in data["detail"]
 
-    mock_task_client.delete_task.assert_called_once_with(
-        nonexistent_tasklist_id, task_id
-    )
+    mock_task_client.delete_task.assert_called_once_with(nonexistent_tasklist_id, task_id)

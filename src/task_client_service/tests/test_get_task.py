@@ -57,9 +57,7 @@ def test_get_task_not_found(
     assert "detail" in data
     assert "Task not found" in data["detail"]
 
-    mock_task_client.get_task.assert_called_once_with(
-        mock_tasklist.id, nonexistent_task_id
-    )
+    mock_task_client.get_task.assert_called_once_with(mock_tasklist.id, nonexistent_task_id)
 
 
 def test_get_task_client_error(

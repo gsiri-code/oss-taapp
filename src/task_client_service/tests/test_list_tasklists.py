@@ -30,6 +30,7 @@ class TestListTasklists:
 
     def test_list_tasklists_ok(self, service_client: Any) -> None:
         """Client returns 2 tasklists -> 200 and list."""
+
         class FakeClient:
             def list_tasklists(self) -> list[_TL]:
                 return [_TL("tl1"), _TL("tl2")]
@@ -45,6 +46,7 @@ class TestListTasklists:
 
     def test_list_tasklists_server_error(self, service_client: Any) -> None:
         """Client raises -> router returns 500."""
+
         class BoomClient:
             def list_tasklists(self) -> list[Any]:
                 msg = "backend died"
@@ -59,9 +61,9 @@ class TestListTasklists:
 
 def test_lifespan_starts_successfully(monkeypatch: pytest.MonkeyPatch) -> None:
     """Lifespan should init client and shut down cleanly."""
+
     class DummyClient:
         """Fake task client."""
-
 
     def fake_get_client(*, interactive: bool = False) -> DummyClient:
         return DummyClient()

@@ -31,14 +31,12 @@ class HTTPStatus(Enum):
     INTERNAL_SERVER_ERROR = 500
 
 
-def assert_response_matches_mock(
-    data: dict[str, str | bool | None], mock_obj: Mock
-) -> None:
+def assert_response_matches_mock(data: dict[str, str | bool | None], mock_obj: Mock) -> None:
     """Assert that the data matches the mock object."""
     for key, value in data.items():
-        assert value == getattr(
-            mock_obj, key
-        ), f"Mismatch for key '{key}': expected {getattr(mock_obj, key)}, got {value}"
+        assert value == getattr(mock_obj, key), (
+            f"Mismatch for key '{key}': expected {getattr(mock_obj, key)}, got {value}"
+        )
 
 
 @pytest.fixture
