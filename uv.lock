@@ -15,8 +15,10 @@ members = [
     "mail-client-service",
     "mail-client-service-client",
     "ta-assignment",
+    "task-client-adapter",
     "task-client-api",
     "task-client-service",
+    "task-client-service-client",
 ]
 
 [[package]]
@@ -1398,6 +1400,36 @@ dev = [
 ]
 
 [[package]]
+name = "task-client-adapter"
+version = "0.1.0"
+source = { editable = "src/task_client_adapter" }
+dependencies = [
+    { name = "attrs" },
+    { name = "httpx" },
+    { name = "python-dateutil" },
+    { name = "task-client-api" },
+    { name = "task-client-service-client" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-cov" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "attrs", specifier = ">=22.2.0" },
+    { name = "httpx", specifier = ">=0.23.0,<0.29.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "python-dateutil", specifier = ">=2.8.0" },
+    { name = "task-client-api", editable = "src/task_client_api" },
+    { name = "task-client-service-client", editable = "src/task_client_service_client" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "task-client-api"
 version = "0.1.0"
 source = { editable = "src/task_client_api" }
@@ -1420,6 +1452,36 @@ requires-dist = [
     { name = "task-client-api", editable = "src/task_client_api" },
     { name = "uvicorn", specifier = ">=0.30.0" },
 ]
+
+[[package]]
+name = "task-client-service-client"
+version = "0.1.0"
+source = { editable = "src/task_client_service_client" }
+dependencies = [
+    { name = "attrs" },
+    { name = "httpx" },
+    { name = "python-dateutil" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "attrs", specifier = ">=22.2.0" },
+    { name = "httpx", specifier = ">=0.23.0,<0.29.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.17.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "python-dateutil", specifier = ">=2.8.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12.7" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "tomli"
