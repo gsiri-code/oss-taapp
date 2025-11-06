@@ -30,6 +30,7 @@ class Client(ABC):
 
     """   TASK OPERATIONS   """
 
+    @abstractmethod
     def list_tasks(self, tasklist_id: str) -> list[Task]:
         """List all tasks in a tasklist."""
         raise NotImplementedError
