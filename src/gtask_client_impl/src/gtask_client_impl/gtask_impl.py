@@ -15,11 +15,11 @@ import os
 from pathlib import Path
 from typing import ClassVar
 
+import requests
 import task_client_api
 from google.auth.exceptions import GoogleAuthError, RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore[import-untyped]
 from googleapiclient.discovery import Resource, build
 from googleapiclient.errors import HttpError
 from task_client_api import task, tasklist
@@ -74,6 +74,9 @@ class GTaskClient(task_client_api.Client):
         "https://www.googleapis.com/auth/tasks",
     ]
     FAILURE_TO_CRED = "Failed to obtain credentials. Please check your setup."
+    SERVICE_BASE_URL: ClassVar[str] = os.environ.get(
+        "TASK_SERVICE_BASE_URL", "http://127.0.0.1:8001"
+    )
 
     def __init__(self, service: Resource | None = None, *, interactive: bool = False) -> None:
         """Initialize the GTaskClient, handling authentication."""
@@ -84,52 +87,176 @@ class GTaskClient(task_client_api.Client):
 
         creds: Credentials | None = None
         token_path = self.TOKEN_PATH
-        creds_path = self.CREDENTIALS_PATH
 
-        if interactive:
-            creds = self._run_interactive_flow(creds_path)
+        """ Authentication Flows """
+        # Try to get credentials from FastAPI session first
+        # If service is not available, fall back to other methods
+        creds = None
+        try:
+            creds = self._get_session_credentials()
+        except Exception as e:
+            # If service is not available (e.g., during startup), fall back to other methods
+            self.logger.debug("Could not get session credentials: %s", e)
 
+        # Fallback to other methods if session credentials are not available
         if not creds and not interactive:
             creds = self._auth_from_env()
 
         if not creds and not interactive:
             creds = self._auth_from_token_file(token_path)
 
+        # If no credentials found, we'll create the client but it won't work until authenticated
+        # This allows the service to start and handle authentication requests
         if not creds or (creds and not creds.valid and not creds.refresh_token):
             if not interactive:
-                msg = (
-                    "No valid credentials found and interactive mode is disabled. "
-                    "Please provide valid credentials via environment variables or token file."
+                # Don't raise error here - allow client to be created
+                # It will fail when trying to make API calls, which is fine
+                # The user can authenticate via /auth/login first
+                self.logger.warning(
+                    "No valid credentials found. Client created but will not work until authenticated. "
+                    "Please authenticate via %s/auth/login",
+                    self.SERVICE_BASE_URL,
                 )
-                raise RuntimeError(msg)
+                # Create a dummy service that will fail on API calls
+                # This allows the service to start and handle auth requests
+                self.service = None  # type: ignore[assignment]
+                return
 
-            creds = self._run_interactive_flow(creds_path)
-            if not creds:
-                msg = "Interactive authentication failed."
-                raise RuntimeError(msg)
+            # In interactive mode, redirect user to FastAPI OAuth flow
+            msg = (
+                "No valid credentials found. Please authenticate via the FastAPI service "
+                f"at {self.SERVICE_BASE_URL}/auth/login"
+            )
+            raise RuntimeError(msg)
+
+        # Refresh credentials if needed
+        if creds and not creds.valid and creds.refresh_token:
+            try:
+                creds.refresh(Request())  # type: ignore[no-untyped-call]
+            except (GoogleAuthError, RefreshError, OSError, ValueError) as e:
+                self.logger.warning("Failed to refresh credentials: %s", e)
+                # Try to get new credentials from session
+                creds = self._get_session_credentials()
+                if not creds or not creds.valid:
+                    msg = "Failed to refresh credentials and no valid session credentials found."
+                    raise RuntimeError(msg) from e
 
         if not creds or not creds.valid:
             raise RuntimeError(self.FAILURE_TO_CRED)
 
-        if interactive or (creds.refresh_token and not Path(token_path).exists()):
-            self._save_token(creds, token_path)
-
         self.service = build("tasks", "v1", credentials=creds)
 
-    def _run_interactive_flow(self, creds_path: str) -> Credentials | None:
-        """Run the interactive OAuth flow.
+    def _get_session_credentials(self) -> Credentials | None:
+        """Request credentials from session data in FastAPI Service.
 
-        This method launches a local web server to handle the OAuth2 flow,
-        opening the user's browser to complete authentication with Google.
+        This method tries to get credentials from the FastAPI service session.
+        First, it tries to get credentials from app state (if available in the same process).
+        If that fails, it falls back to making an HTTP request.
+
+        Returns:
+            A Credentials object if found in session, None otherwise.
+
         """
-        if not Path(creds_path).exists():
-            msg = f"'{creds_path}' not found. Cannot run interactive auth."
-            raise FileNotFoundError(msg)
-        flow = InstalledAppFlow.from_client_secrets_file(
-            creds_path,
-            self.SCOPES,
-        )
-        return flow.run_local_server(port=0)  # type: ignore[no-any-return]
+        # First, try to get credentials from app state (same process)
+        # This is more efficient and doesn't require HTTP requests
+        # Only works when called from within a FastAPI request context
+        try:
+            import sys
+            # Try to import the dependencies module if not already loaded
+            try:
+                import task_client_service.dependencies as deps_module
+            except ImportError:
+                # Module not available - not in FastAPI context
+                self.logger.debug("task_client_service.dependencies module not available")
+                deps_module = None
+
+            if deps_module and hasattr(deps_module, "current_request"):
+                request = deps_module.current_request
+                if request:
+                    self.logger.debug("Found FastAPI request context")
+                    if hasattr(request.app.state, "_current_session_creds"):
+                        creds_data = request.app.state._current_session_creds
+                        if creds_data:
+                            self.logger.info("Found credentials in app state")
+                            return self._create_credentials_from_dict(creds_data)
+                        else:
+                            self.logger.debug("No credentials in app state (None)")
+                    else:
+                        self.logger.debug("_current_session_creds not in app state")
+                else:
+                    self.logger.debug("current_request is None")
+            else:
+                self.logger.debug("dependencies module not found or no current_request attribute")
+        except (AttributeError, ImportError, KeyError) as e:
+            # Not in FastAPI context - this is expected when running outside FastAPI
+            self.logger.debug("Not in FastAPI context, cannot get session credentials: %s", e)
+            return None
+        except Exception as e:
+            self.logger.debug("Could not get credentials from app state: %s", e)
+            return None
+
+        # Fallback: Try HTTP request (won't work without session cookie, but kept for compatibility)
+        http_unauthorized = 401
+        http_ok = 200
+
+        try:
+            # Make request to internal endpoint to get session credentials
+            response = requests.get(
+                f"{self.SERVICE_BASE_URL}/auth/_give_session_creds",
+                timeout=5,
+            )
+
+            if response.status_code == http_unauthorized:
+                # No credentials in session - user needs to authenticate
+                self.logger.info("No credentials found in session. User needs to authenticate.")
+                return None
+
+            if response.status_code != http_ok:
+                self.logger.warning(
+                    "Failed to retrieve session credentials: HTTP %d", response.status_code
+                )
+                return None
+
+            # Parse credentials from response
+            creds_data = response.json()
+            return self._create_credentials_from_dict(creds_data)
+
+        except requests.exceptions.RequestException as e:
+            # If service is not available (e.g., during startup), return None
+            # This allows fallback to other authentication methods
+            self.logger.debug(
+                "Failed to connect to FastAPI service for session credentials: %s", e
+            )
+            return None
+        except (KeyError, ValueError, json.JSONDecodeError) as e:
+            self.logger.warning("Failed to parse session credentials: %s", e)
+            return None
+
+    def _create_credentials_from_dict(self, creds_data: dict) -> Credentials | None:
+        """Create Credentials object from dictionary data."""
+        try:
+            # Create Credentials object from session data
+            creds = Credentials(  # type: ignore[no-untyped-call]
+                token=creds_data.get("token"),
+                refresh_token=creds_data.get("refresh_token"),
+                token_uri=creds_data.get("token_uri", "https://oauth2.googleapis.com/token"),
+                client_id=creds_data.get("client_id"),
+                client_secret=creds_data.get("client_secret"),
+                scopes=creds_data.get("scopes", self.SCOPES),
+            )
+
+            # Refresh if needed
+            if not creds.valid and creds.refresh_token:
+                try:
+                    creds.refresh(Request())  # type: ignore[no-untyped-call]
+                except (GoogleAuthError, RefreshError, OSError, ValueError) as e:
+                    self.logger.warning("Failed to refresh session credentials: %s", e)
+                    return None
+
+            return creds
+        except Exception as e:
+            self.logger.warning("Failed to create credentials from dict: %s", e)
+            return None
 
     def _auth_from_env(self) -> Credentials | None:
         """Attempt to authenticate using environment variables.
@@ -211,6 +338,39 @@ class GTaskClient(task_client_api.Client):
         with Path(token_path).open("w") as token:
             token.write(creds.to_json())  # type: ignore[no-untyped-call]
 
+    def _ensure_service_initialized(self) -> None:
+        """Ensure the service is initialized with valid credentials.
+
+        If service is None, try to get credentials and initialize it.
+        Raises RuntimeError if credentials are not available.
+        """
+        if self.service is None:
+            # Try to get credentials again (might have been authenticated since initialization)
+            creds = self._get_session_credentials()
+            if not creds:
+                creds = self._auth_from_env()
+            if not creds:
+                creds = self._auth_from_token_file(self.TOKEN_PATH)
+
+            if not creds or not creds.valid:
+                msg = (
+                    "No valid credentials available. Please authenticate via "
+                    f"{self.SERVICE_BASE_URL}/auth/login first."
+                )
+                raise RuntimeError(msg)
+
+            # Refresh if needed
+            if not creds.valid and creds.refresh_token:
+                try:
+                    creds.refresh(Request())  # type: ignore[no-untyped-call]
+                except (GoogleAuthError, RefreshError, OSError, ValueError) as e:
+                    msg = f"Failed to refresh credentials: {e}"
+                    raise RuntimeError(msg) from e
+
+            # Initialize the service
+            self.service = build("tasks", "v1", credentials=creds)
+            self.logger.info("Service initialized with credentials")
+
     """   TASKLIST OPERATIONS   """
 
     def delete_tasklist(self, tasklist_id: str) -> bool:
@@ -223,6 +383,7 @@ class GTaskClient(task_client_api.Client):
             True if the tasklist was successfully deleted, False otherwise.
 
         """
+        self._ensure_service_initialized()
         try:
             (
                 self.service.tasklists()  # type: ignore[attr-defined]
@@ -246,6 +407,7 @@ class GTaskClient(task_client_api.Client):
             The created TaskList as returned by the API.
 
         """
+        self._ensure_service_initialized()
         try:
             body = {"title": tasklist.title}
             result = (
@@ -268,6 +430,7 @@ class GTaskClient(task_client_api.Client):
             A list of TaskList objects.
 
         """
+        self._ensure_service_initialized()
         try:
             result = (
                 self.service.tasklists().list().execute()  # type: ignore[attr-defined]
@@ -295,6 +458,7 @@ class GTaskClient(task_client_api.Client):
             A list of Task objects.
 
         """
+        self._ensure_service_initialized()
         try:
             result = (
                 self.service.tasks()  # type: ignore[attr-defined]
@@ -328,6 +492,7 @@ class GTaskClient(task_client_api.Client):
             The inserted task with updated fields.
 
         """
+        self._ensure_service_initialized()
         try:
             body: dict[str, str | None] = {
                 "title": task.title,
@@ -368,6 +533,7 @@ class GTaskClient(task_client_api.Client):
             True if the task was successfully deleted, False otherwise.
 
         """
+        self._ensure_service_initialized()
         try:
             # Note: Google Tasks API requires tasklist ID, defaulting to "@default"
             # In a production system, you might want to store tasklist_id with tasks
@@ -400,6 +566,7 @@ class GTaskClient(task_client_api.Client):
             ValueError: If the task cannot be retrieved.
 
         """
+        self._ensure_service_initialized()
         try:
             result = (
                 self.service.tasks()  # type: ignore[attr-defined]

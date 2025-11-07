@@ -82,16 +82,6 @@ warn_unused_ignores = false
 module = [
     "google.*",
     "googleapiclient.*",
-    "gmail_client_impl.*",
-    "mail_client_api.*",
-    "mail_client_service.*",
-    "mail_client_adapter.*",
-    "mail_client_service_client.*",
-    "task_client_api.*",
-    "gtask_client_impl.*",
-    "task_client_service.*",
-    "task_client_service_client.*",
-    "task_client_adapter.*",
 ]
 ignore_missing_imports = true
 
