@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-from task_client_service import tasklist_router
 from task_client_service.dependencies import get_task_client  # type: ignore[import-untyped]
+from task_client_service.routers import tasklist_router
 
 HTTP_200_OK = 200
 HTTP_409_CONFLICT = 409

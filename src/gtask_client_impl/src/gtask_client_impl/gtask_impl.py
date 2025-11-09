@@ -13,7 +13,8 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import ClassVar
+from types import ModuleType
+from typing import Any, ClassVar
 
 import requests
 import task_client_api
@@ -78,7 +79,9 @@ class GTaskClient(task_client_api.Client):
         "TASK_SERVICE_BASE_URL", "http://127.0.0.1:8001"
     )
 
-    def __init__(self, service: Resource | None = None, *, interactive: bool = False) -> None:
+    def __init__(
+        self, service: Resource | None = None, *, interactive: bool = False
+    ) -> None:
         """Initialize the GTaskClient, handling authentication."""
         self.logger = logging.getLogger(__name__)
         if service:
@@ -105,24 +108,16 @@ class GTaskClient(task_client_api.Client):
         if not creds and not interactive:
             creds = self._auth_from_token_file(token_path)
 
-        # If no credentials found, we'll create the client but it won't work until authenticated
-        # This allows the service to start and handle authentication requests
         if not creds or (creds and not creds.valid and not creds.refresh_token):
             if not interactive:
-                # Don't raise error here - allow client to be created
-                # It will fail when trying to make API calls, which is fine
-                # The user can authenticate via /auth/login first
                 self.logger.warning(
-                    "No valid credentials found. Client created but will not work until authenticated. "
+                    "No valid credentials found. user must be authenticated. "
                     "Please authenticate via %s/auth/login",
                     self.SERVICE_BASE_URL,
                 )
-                # Create a dummy service that will fail on API calls
-                # This allows the service to start and handle auth requests
                 self.service = None  # type: ignore[assignment]
                 return
 
-            # In interactive mode, redirect user to FastAPI OAuth flow
             msg = (
                 "No valid credentials found. Please authenticate via the FastAPI service "
                 f"at {self.SERVICE_BASE_URL}/auth/login"
@@ -147,49 +142,40 @@ class GTaskClient(task_client_api.Client):
         self.service = build("tasks", "v1", credentials=creds)
 
     def _get_session_credentials(self) -> Credentials | None:
-        """Request credentials from session data in FastAPI Service.
-
-        This method tries to get credentials from the FastAPI service session.
-        First, it tries to get credentials from app state (if available in the same process).
-        If that fails, it falls back to making an HTTP request.
-
-        Returns:
-            A Credentials object if found in session, None otherwise.
-
-        """
-        # First, try to get credentials from app state (same process)
-        # This is more efficient and doesn't require HTTP requests
-        # Only works when called from within a FastAPI request context
+        """Request credentials from session data in FastAPI Service."""
         try:
             import sys
-            # Try to import the dependencies module if not already loaded
+
             try:
                 import task_client_service.dependencies as deps_module
             except ImportError:
-                # Module not available - not in FastAPI context
-                self.logger.debug("task_client_service.dependencies module not available")
-                deps_module = None
+                self.logger.debug(
+                    "task_client_service.dependencies module not available"
+                )
+                deps_module = None  # type: ignore[assignment]
 
             if deps_module and hasattr(deps_module, "current_request"):
-                request = deps_module.current_request
+                request = deps_module.current_request.get()
                 if request:
                     self.logger.debug("Found FastAPI request context")
-                    if hasattr(request.app.state, "_current_session_creds"):
-                        creds_data = request.app.state._current_session_creds
-                        if creds_data:
-                            self.logger.info("Found credentials in app state")
-                            return self._create_credentials_from_dict(creds_data)
-                        else:
-                            self.logger.debug("No credentials in app state (None)")
-                    else:
-                        self.logger.debug("_current_session_creds not in app state")
+                    creds_data = getattr(
+                        request.app.state, "current_session_creds", None
+                    )
+                    if creds_data:
+                        self.logger.info("Found credentials in app state")
+                        return self._create_credentials_from_dict(creds_data)
+                    self.logger.debug("No credentials in app state (None)")
                 else:
                     self.logger.debug("current_request is None")
             else:
-                self.logger.debug("dependencies module not found or no current_request attribute")
+                self.logger.debug(
+                    "dependencies module not found or no current_request attribute"
+                )
         except (AttributeError, ImportError, KeyError) as e:
             # Not in FastAPI context - this is expected when running outside FastAPI
-            self.logger.debug("Not in FastAPI context, cannot get session credentials: %s", e)
+            self.logger.debug(
+                "Not in FastAPI context, cannot get session credentials: %s", e
+            )
             return None
         except Exception as e:
             self.logger.debug("Could not get credentials from app state: %s", e)
@@ -208,12 +194,15 @@ class GTaskClient(task_client_api.Client):
 
             if response.status_code == http_unauthorized:
                 # No credentials in session - user needs to authenticate
-                self.logger.info("No credentials found in session. User needs to authenticate.")
+                self.logger.info(
+                    "No credentials found in session. User needs to authenticate."
+                )
                 return None
 
             if response.status_code != http_ok:
                 self.logger.warning(
-                    "Failed to retrieve session credentials: HTTP %d", response.status_code
+                    "Failed to retrieve session credentials: HTTP %d",
+                    response.status_code,
                 )
                 return None
 
@@ -232,14 +221,18 @@ class GTaskClient(task_client_api.Client):
             self.logger.warning("Failed to parse session credentials: %s", e)
             return None
 
-    def _create_credentials_from_dict(self, creds_data: dict) -> Credentials | None:
+    def _create_credentials_from_dict(
+        self, creds_data: dict[str, Any]
+    ) -> Credentials | None:
         """Create Credentials object from dictionary data."""
         try:
             # Create Credentials object from session data
             creds = Credentials(  # type: ignore[no-untyped-call]
                 token=creds_data.get("token"),
                 refresh_token=creds_data.get("refresh_token"),
-                token_uri=creds_data.get("token_uri", "https://oauth2.googleapis.com/token"),
+                token_uri=creds_data.get(
+                    "token_uri", "https://oauth2.googleapis.com/token"
+                ),
                 client_id=creds_data.get("client_id"),
                 client_secret=creds_data.get("client_secret"),
                 scopes=creds_data.get("scopes", self.SCOPES),
@@ -253,10 +246,11 @@ class GTaskClient(task_client_api.Client):
                     self.logger.warning("Failed to refresh session credentials: %s", e)
                     return None
 
-            return creds
         except Exception as e:
             self.logger.warning("Failed to create credentials from dict: %s", e)
             return None
+        else:
+            return creds
 
     def _auth_from_env(self) -> Credentials | None:
         """Attempt to authenticate using environment variables.
@@ -272,7 +266,9 @@ class GTaskClient(task_client_api.Client):
         client_id = os.environ.get("TASKS_CLIENT_ID")
         client_secret = os.environ.get("TASKS_CLIENT_SECRET")
         refresh_token = os.environ.get("TASKS_REFRESH_TOKEN")
-        token_uri = os.environ.get("TASKS_TOKEN_URI", "https://oauth2.googleapis.com/token")
+        token_uri = os.environ.get(
+            "TASKS_TOKEN_URI", "https://oauth2.googleapis.com/token"
+        )
 
         if not (client_id and client_secret and refresh_token):
             return None

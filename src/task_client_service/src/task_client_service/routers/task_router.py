@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, HTTPException
 from task_client_api import Task as ServiceTask
 from task_client_api import get_task as get_service_task
 
-from .dependencies import TaskClientDep
+from task_client_service.dependencies import TaskClientDep
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,9 @@ async def get_task(
     task_id: str,
 ) -> dict[str, str | None | bool]:
     """Read a single task from a given tasklist."""
-    logger.info("Recievd request to get task '%s' from tasklist '%s'", task_id, tasklist_id)
+    logger.info(
+        "Recievd request to get task '%s' from tasklist '%s'", task_id, tasklist_id
+    )
     try:
         task = client.get_task(tasklist_id, task_id)
         formatted_task = task_to_dict(task)
@@ -75,7 +77,9 @@ async def get_task(
         )
         raise HTTPException(status_code=500, detail=str(e)) from e
     else:
-        logger.info("Successfully retrieved task '%s' from tasklist '%s'", task_id, tasklist_id)
+        logger.info(
+            "Successfully retrieved task '%s' from tasklist '%s'", task_id, tasklist_id
+        )
         return formatted_task
 
 
@@ -152,9 +156,13 @@ async def delete_task(
     task_id: str,
 ) -> dict[str, str]:
     """Mark a task as deleted."""
-    logger.info("Recieved request to  delete task '%s' from tasklist '%s'", task_id, tasklist_id)
+    logger.info(
+        "Recieved request to  delete task '%s' from tasklist '%s'", task_id, tasklist_id
+    )
     if not client.delete_task(tasklist_id, task_id):
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
 
-    logger.info("Successfully deleted task '%s' from tasklist '%s'", task_id, tasklist_id)
+    logger.info(
+        "Successfully deleted task '%s' from tasklist '%s'", task_id, tasklist_id
+    )
     return {"detail": f"Task '{task_id}' deleted from tasklist '{tasklist_id}'."}

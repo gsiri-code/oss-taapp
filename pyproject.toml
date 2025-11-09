@@ -5,7 +5,9 @@ description = "Template repository for a mail client"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "google-auth-oauthlib>=1.2.2",
     "python-dotenv>=1.0.0",
+    "types-requests>=2.32.4.20250913",
 ]
 
 [project.optional-dependencies]
@@ -72,6 +74,7 @@ mypy_path = [
     "src/task_client_service/src",
     "src/task_client_service_client/src",
     "src/task_client_adapter/src",
+    "stubs",
 ]
 
 ignore_missing_imports = false
