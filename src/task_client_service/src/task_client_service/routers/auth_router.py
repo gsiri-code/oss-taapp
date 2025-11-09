@@ -8,6 +8,8 @@ from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
+from google.auth.exceptions import GoogleAuthError, RefreshError
+from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 
@@ -18,9 +20,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 SCOPES = ["https://www.googleapis.com/auth/tasks"]
 CREDENTIALS_PATH = "credentials.json"
-REDIRECT_URI = os.environ.get(
-    "OAUTH_REDIRECT_URI", "http://127.0.0.1:8000/auth/callback"
-)
+# Default to port 8001 to match the service port
+REDIRECT_URI = os.environ.get("OAUTH_REDIRECT_URI", "http://127.0.0.1:8001/auth/callback")
 
 
 def get_credentials_path() -> Path:
@@ -46,8 +47,13 @@ def credentials_to_dict(creds: Credentials) -> dict[str, Any]:
     }
 
 
-def _get_creds_from_ext_service(request: Request) -> dict[str, str]:
-    """Retrieve token data from Google API using OAuth 2.0 workflow."""
+def _exchange_code_for_tokens(request: Request) -> dict[str, str]:
+    """Exchange authorization code for access and refresh tokens.
+
+    This function handles the server-to-server token exchange step of the OAuth 2.0 flow.
+    It receives the authorization code from the callback, validates the state parameter,
+    and exchanges the code for access and refresh tokens via Google's token endpoint.
+    """
     creds_path = get_credentials_path()
 
     code = request.query_params.get("code")
@@ -70,12 +76,23 @@ def _get_creds_from_ext_service(request: Request) -> dict[str, str]:
             redirect_uri=REDIRECT_URI,
         )
 
+        # Exchange authorization code for tokens (server-to-server request to Google)
         flow.fetch_token(code=code, state=state)
         creds: Credentials = flow.credentials
 
         session_data = credentials_to_dict(creds)
 
+        # Store in session for browser-based requests
         request.session["credentials"] = json.dumps(session_data)  # type: ignore[attr-defined]
+        logger.info(
+            "Stored credentials in session. Session keys: %s",
+            list(request.session.keys()) if hasattr(request.session, "keys") else "N/A",
+        )
+        # Also store in app.state for programmatic access (e.g., polling from gtask_impl)
+        # Store as both 'credentials' and 'current_session_creds' for compatibility
+        request.app.state.credentials = session_data  # type: ignore[attr-defined]
+        request.app.state.current_session_creds = session_data  # type: ignore[attr-defined]
+        logger.info("Stored credentials in app.state")
 
     except Exception as e:
         logger.exception("Failed to exchange authorization code for tokens")
@@ -89,18 +106,32 @@ def _get_creds_from_ext_service(request: Request) -> dict[str, str]:
 async def oauth_callback(request: Request) -> Response:
     """Handle OAuth callback from Google."""
     try:
-        _get_creds_from_ext_service(request)
-        return Response(
+        logger.info("OAuth callback received")
+        _exchange_code_for_tokens(request)
+        # Verify credentials are in session
+        creds_in_session = request.session.get("credentials")
+        logger.info(
+            "OAuth callback: Credentials in session after storage: %s",
+            creds_in_session is not None,
+        )
+        logger.info(
+            "OAuth callback: Session keys after storage: %s",
+            list(request.session.keys()) if hasattr(request.session, "keys") else "N/A",
+        )
+        response = Response(
             content="Authentication successful! You can close this window.",
             status_code=200,
         )
+        # Ensure session is saved by accessing it one more time
+        # This helps ensure the session middleware saves it
+        _ = request.session.get("credentials")
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("OAuth callback failed")
-        raise HTTPException(
-            status_code=500, detail=f"OAuth callback failed: {e!s}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"OAuth callback failed: {e!s}") from e
+    else:
+        return response
 
 
 @router.get("/login")
@@ -145,9 +176,7 @@ async def login(request: Request) -> RedirectResponse:
         raise HTTPException(status_code=500, detail=msg) from e
     except Exception as e:
         logger.exception("Failed to initiate OAuth flow")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to initiate OAuth flow: {e!s}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Failed to initiate OAuth flow: {e!s}") from e
     else:
         return RedirectResponse(url=authorization_url, status_code=302)
 
@@ -155,17 +184,99 @@ async def login(request: Request) -> RedirectResponse:
 @router.get("/_give_session_creds")
 async def give_session_creds(request: Request) -> JSONResponse:
     """Retrieve session credentials (internal endpoint, not user-facing)."""
-    if not hasattr(request, "session"):
-        logger.warning("Session middleware not configured")
-        raise HTTPException(status_code=500, detail="Session not available")
+    # First try to get from app.state (for programmatic access)
+    creds_data = getattr(request.app.state, "credentials", None)
 
-    creds = request.session.get("credentials")
+    # If not in app.state, try session (for browser-based requests)
+    if not creds_data and hasattr(request, "session"):
+        creds_json = request.session.get("credentials")
+        if creds_json:
+            try:
+                creds_data = json.loads(creds_json)
+            except (json.JSONDecodeError, KeyError) as e:
+                logger.warning("Failed to parse session credentials: %s", e)
 
-    if not creds:
-        logger.info("No credentials found in session for user")
+    if not creds_data:
+        logger.info("No credentials found in session or app.state")
         raise HTTPException(
             status_code=401,
             detail="No active session found. Please log in at /auth/login",
         )
 
-    return JSONResponse(json.loads(creds))
+    return JSONResponse(creds_data)
+
+
+@router.post("/refresh")
+async def refresh_credentials(request: Request) -> JSONResponse:
+    """Refresh the stored credentials using the refresh token.
+
+    This endpoint refreshes the access token using the stored refresh token
+    and updates both the session and app.state with the new credentials.
+    """
+    # Get current credentials from app.state or session
+    creds_data = getattr(request.app.state, "credentials", None)
+
+    if not creds_data and hasattr(request, "session"):
+        creds_json = request.session.get("credentials")
+        if creds_json:
+            try:
+                creds_data = json.loads(creds_json)
+            except (json.JSONDecodeError, KeyError) as e:
+                logger.warning("Failed to parse session credentials: %s", e)
+
+    if not creds_data:
+        raise HTTPException(
+            status_code=401,
+            detail="No credentials found. Please log in at /auth/login",
+        )
+
+    if not creds_data.get("refresh_token"):
+        raise HTTPException(
+            status_code=400,
+            detail="No refresh token available. Please re-authenticate at /auth/login",
+        )
+
+    try:
+        # Create Credentials object from stored data
+        credentials_factory = cast("Any", Credentials)
+        creds = cast(
+            "Credentials",
+            credentials_factory(
+                token=creds_data.get("token"),
+                refresh_token=creds_data.get("refresh_token"),
+                token_uri=creds_data.get("token_uri", "https://oauth2.googleapis.com/token"),
+                client_id=creds_data.get("client_id"),
+                client_secret=creds_data.get("client_secret"),
+                scopes=creds_data.get("scopes", SCOPES),
+            ),
+        )
+
+        # Refresh the credentials
+        request_factory = cast("Any", GoogleRequest)
+        request_adapter = request_factory()
+        creds.refresh(request_adapter)
+
+        # Convert back to dict
+        refreshed_data = credentials_to_dict(creds)
+
+        # Update session and app.state
+        if hasattr(request, "session"):
+            request.session["credentials"] = json.dumps(refreshed_data)
+        request.app.state.credentials = refreshed_data
+        request.app.state.current_session_creds = refreshed_data  # type: ignore[attr-defined]
+
+        logger.info("Successfully refreshed credentials")
+        return JSONResponse(refreshed_data)
+
+    except (GoogleAuthError, RefreshError) as e:
+        logger.exception("Failed to refresh credentials")
+        raise HTTPException(
+            status_code=401,
+            detail=f"Failed to refresh credentials: {e!s}. Please re-authenticate at /auth/login",
+        ) from e
+    except Exception as e:
+        logger.exception("Unexpected error refreshing credentials")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error refreshing credentials: {e!s}",
+        ) from e

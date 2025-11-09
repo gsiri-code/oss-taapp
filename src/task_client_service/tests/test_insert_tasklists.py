@@ -2,99 +2,123 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
 
-import pytest
+import task_client_api
+from task_client_api import tasklist as tasklist_protocol
 
-from task_client_service.dependencies import get_task_client  # type: ignore[import-untyped]
-from task_client_service.routers import tasklist_router
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from unittest.mock import Mock
 
-HTTP_200_OK = 200
-HTTP_409_CONFLICT = 409
-HTTP_500_INTERNAL_SERVER_ERROR = 500
+    import pytest
+    from fastapi.testclient import TestClient
 
-
-class _DummyTasklist:
-    """Simple tasklist object returned by patched helpers."""
-
-    def __init__(self, tasklist_id: str, title: str) -> None:
-        self.id = tasklist_id
-        self.title = title
-        self.etag = "etag"
-        self.updated = "2025-01-01T00:00:00Z"
-        self.self_link = f"https://example.com/{tasklist_id}"
+    from .conftest import HTTPStatus
 
 
-@pytest.mark.usefixtures("service_client")
-class TestInsertTasklist:
-    """Covers insert-tasklist router branches."""
+def test_insert_ok(
+    service_client: TestClient,
+    create_mock_tasklist: Callable[..., Mock],
+    mock_task_client: Mock,
+    http_status: type[HTTPStatus],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Happy path: service builds tasklist and client inserts it."""
+    # Arrange
+    mock_tasklist = create_mock_tasklist("generated-id", "My New Task List")
 
-    def test_insert_ok(
-        self,
-        service_client: Any,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Happy path: service builds tasklist and client inserts it."""
+    def fake_get_service_tasklist(_: str) -> Mock:
+        return mock_tasklist
 
-        def fake_get_service_tasklist(_: str) -> _DummyTasklist:
-            return _DummyTasklist("generated-id", "My New Task List")
+    monkeypatch.setattr(task_client_api, "get_tasklist", fake_get_service_tasklist)
+    monkeypatch.setattr(
+        tasklist_protocol,
+        "get_tasklist",
+        fake_get_service_tasklist,
+        raising=False,
+    )
 
-        monkeypatch.setattr(tasklist_router, "get_service_tasklist", fake_get_service_tasklist)
+    mock_task_client.insert_tasklist.return_value = mock_tasklist
 
-        class FakeClient:
-            def insert_tasklist(self, tl: _DummyTasklist) -> _DummyTasklist:
-                return tl
+    # Act
+    resp = service_client.post("/tasklists", json={"title": "My New Task List"})
 
-        service_client.app.dependency_overrides[get_task_client] = lambda: FakeClient()
+    # Assert
+    assert http_status(resp.status_code) == http_status.OK
+    data = resp.json()
+    assert data["id"] == "generated-id"
+    assert data["title"] == "My New Task List"
 
-        resp = service_client.post("/tasklists", json={"title": "My New Task List"})
-        assert resp.status_code == HTTP_200_OK
-        data = resp.json()
-        assert data["id"] == "generated-id"
-        assert data["title"] == "My New Task List"
+    # Verify the mock was called correctly
+    mock_task_client.insert_tasklist.assert_called_once()
 
-    def test_insert_conflict_409(
-        self,
-        service_client: Any,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """If client raises ValueError, router should return 409."""
 
-        def fake_get_service_tasklist(_: str) -> _DummyTasklist:
-            return _DummyTasklist("dup-id", "Dup Title")
+def test_insert_conflict_409(
+    service_client: TestClient,
+    create_mock_tasklist: Callable[..., Mock],
+    mock_task_client: Mock,
+    http_status: type[HTTPStatus],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If client raises ValueError, router should return 409."""
+    # Arrange
+    mock_tasklist = create_mock_tasklist("dup-id", "Dup Title")
 
-        monkeypatch.setattr(tasklist_router, "get_service_tasklist", fake_get_service_tasklist)
+    def fake_get_service_tasklist(_: str) -> Mock:
+        return mock_tasklist
 
-        class FakeClient:
-            def insert_tasklist(self, tl: _DummyTasklist) -> _DummyTasklist:
-                msg = "already exists"
-                raise ValueError(msg)
+    monkeypatch.setattr(task_client_api, "get_tasklist", fake_get_service_tasklist)
+    monkeypatch.setattr(
+        tasklist_protocol,
+        "get_tasklist",
+        fake_get_service_tasklist,
+        raising=False,
+    )
 
-        service_client.app.dependency_overrides[get_task_client] = lambda: FakeClient()
+    mock_task_client.insert_tasklist.side_effect = ValueError("already exists")
 
-        resp = service_client.post("/tasklists", json={"title": "Dup Title"})
-        assert resp.status_code == HTTP_409_CONFLICT
-        assert "already exists" in resp.json()["detail"]
+    # Act
+    resp = service_client.post("/tasklists", json={"title": "Dup Title"})
 
-    def test_insert_other_error_500(
-        self,
-        service_client: Any,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """If client raises non-ValueError, router should return 500."""
+    # Assert
+    assert http_status(resp.status_code) == http_status.CONFLICT
+    assert "already exists" in resp.json()["detail"]
 
-        def fake_get_service_tasklist(_: str) -> _DummyTasklist:
-            return _DummyTasklist("some-id", "Err Title")
+    # Verify the mock was called correctly
+    mock_task_client.insert_tasklist.assert_called_once()
 
-        monkeypatch.setattr(tasklist_router, "get_service_tasklist", fake_get_service_tasklist)
 
-        class FakeClient:
-            def insert_tasklist(self, tl: _DummyTasklist) -> _DummyTasklist:
-                msg = "unexpected"
-                raise RuntimeError(msg)
+def test_insert_other_error_500(
+    service_client: TestClient,
+    create_mock_tasklist: Callable[..., Mock],
+    mock_task_client: Mock,
+    http_status: type[HTTPStatus],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If client raises non-ValueError, router should return 500."""
+    # Arrange
+    mock_tasklist = create_mock_tasklist("some-id", "Err Title")
 
-        service_client.app.dependency_overrides[get_task_client] = lambda: FakeClient()
+    def fake_get_service_tasklist(_: str) -> Mock:
+        return mock_tasklist
 
-        resp = service_client.post("/tasklists", json={"title": "Err Title"})
-        assert resp.status_code == HTTP_500_INTERNAL_SERVER_ERROR
-        assert "unexpected" in resp.json()["detail"]
+    monkeypatch.setattr(task_client_api, "get_tasklist", fake_get_service_tasklist)
+    monkeypatch.setattr(
+        tasklist_protocol,
+        "get_tasklist",
+        fake_get_service_tasklist,
+        raising=False,
+    )
+
+    mock_task_client.insert_tasklist.side_effect = RuntimeError("unexpected")
+
+    # Act
+    resp = service_client.post("/tasklists", json={"title": "Err Title"})
+
+    # Assert
+    assert http_status(resp.status_code) == http_status.INTERNAL_SERVER_ERROR
+    assert "unexpected" in resp.json()["detail"]
+
+    # Verify the mock was called correctly
+    mock_task_client.insert_tasklist.assert_called_once()

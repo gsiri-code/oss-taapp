@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def main() -> None:  # noqa: PLR0912, PLR0915, C901 # Just a test script
     """Initialize the client and demonstrate all task client methods."""
     # Now, get_client() returns a GTaskClient instance...
-    client = task_client_api.get_client(interactive=False)
+    client = task_client_api.get_client(interactive=True)
 
     # Test 1: List all tasklists
     logger.info("Test 1: Listing all tasklists...")

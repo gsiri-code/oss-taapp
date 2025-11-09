@@ -75,9 +75,7 @@ class GmailClient(mail_client_api.Client):
     ]
     FAILURE_TO_CRED = "Failed to obtain credentials. Please check your setup."
 
-    def __init__(
-        self, service: Resource | None = None, *, interactive: bool = False
-    ) -> None:
+    def __init__(self, service: Resource | None = None, *, interactive: bool = False) -> None:
         """Initialize the GmailClient, handling authentication."""
         self.logger = logging.getLogger(__name__)
         if service:
@@ -125,9 +123,8 @@ class GmailClient(mail_client_api.Client):
         opening the user's browser to complete authentication with Google.
         """
         if not Path(creds_path).exists():
-            raise FileNotFoundError(
-                f"'{creds_path}' not found. Cannot run interactive auth."
-            )  # noqa: EM102 TRY003
+            msg = f"'{creds_path}' not found. Cannot run interactive auth."
+            raise FileNotFoundError(msg)
         flow = InstalledAppFlow.from_client_secrets_file(
             creds_path,
             self.SCOPES,
@@ -148,9 +145,7 @@ class GmailClient(mail_client_api.Client):
         client_id = os.environ.get("GMAIL_CLIENT_ID")
         client_secret = os.environ.get("GMAIL_CLIENT_SECRET")
         refresh_token = os.environ.get("GMAIL_REFRESH_TOKEN")
-        token_uri = os.environ.get(
-            "GMAIL_TOKEN_URI", "https://oauth2.googleapis.com/token"
-        )
+        token_uri = os.environ.get("GMAIL_TOKEN_URI", "https://oauth2.googleapis.com/token")
 
         if not (client_id and client_secret and refresh_token):
             return None
@@ -264,14 +259,10 @@ class GmailClient(mail_client_api.Client):
         try:
             msg = self.get_message(message_id)
             subject = msg.subject or "No subject"
-            self.logger.info(
-                "Attempting to delete message %s w subject: %s", message_id, subject
-            )
+            self.logger.info("Attempting to delete message %s w subject: %s", message_id, subject)
 
         except (HttpError, OSError, ValueError) as e:
-            self.logger.warning(
-                "Could not retrieve %s details before deletion: %s", message_id, e
-            )
+            self.logger.warning("Could not retrieve %s details before deletion: %s", message_id, e)
 
         try:
             (
@@ -281,9 +272,7 @@ class GmailClient(mail_client_api.Client):
                 .execute()
             )
         except (HttpError, OSError, ValueError) as e:
-            self.logger.exception(
-                "Failed to delete message %s (subject: %s)", message_id, subject
-            )
+            self.logger.exception("Failed to delete message %s (subject: %s)", message_id, subject)
             self.logger.debug("Error details: %s", e)
             return False
         else:

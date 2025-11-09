@@ -74,7 +74,6 @@ mypy_path = [
     "src/task_client_service/src",
     "src/task_client_service_client/src",
     "src/task_client_adapter/src",
-    "stubs",
 ]
 
 ignore_missing_imports = false
@@ -85,6 +84,7 @@ warn_unused_ignores = false
 module = [
     "google.*",
     "googleapiclient.*",
+    "google_auth_oauthlib.*",
 ]
 ignore_missing_imports = true
 

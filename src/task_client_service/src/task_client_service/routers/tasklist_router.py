@@ -70,9 +70,7 @@ async def insert_tasklist(
         logger.info("Successfully created tasklist with ID: %s", new_tasklist.id)
         return tasklist_to_dict(new_tasklist)
     except ValueError as e:
-        logger.critical(
-            "Conflict: Tasklist with title '%s' already exists", title, exc_info=True
-        )
+        logger.critical("Conflict: Tasklist with title '%s' already exists", title, exc_info=True)
         raise HTTPException(status_code=409, detail=str(e)) from e
     except Exception as e:
         logger.critical("Error inserting tasklist '%s': %s", title, e, exc_info=True)
@@ -100,17 +98,13 @@ async def delete_tasklist(
     target_tasklist = next((t for t in tasklists if t.id == tasklist_id), None)
 
     if target_tasklist is None:
-        raise HTTPException(
-            status_code=404, detail=f"Error: Tasklist '{tasklist_id}' not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Error: Tasklist '{tasklist_id}' not found")
 
     try:
         success = client.delete_tasklist(tasklist_id)
     except Exception as e:  # unexpected failures from the client
         logger.exception("Error deleting tasklist '%s'", tasklist_id)
-        raise HTTPException(
-            status_code=500, detail="Internal error while deleting tasklist"
-        ) from e
+        raise HTTPException(status_code=500, detail="Internal error while deleting tasklist") from e
     else:
         if not success:
             raise HTTPException(
