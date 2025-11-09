@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from gtask_client_impl.tasklist_impl import GTaskList
 
 
@@ -71,16 +73,11 @@ class TestEdgeCases:
         assert "etag_value_" in tasklist.etag
 
     def test_malformed_json(self) -> None:
-        """Test handling of malformed JSON data."""
+        """Test handling of malformed JSON data raises ValueError."""
         malformed_json = '{"id": "test", "title": "Test", invalid}'
 
-        tasklist = GTaskList(raw_data=malformed_json)
-
-        assert tasklist.id == ""  # Empty dict defaults
-        assert tasklist.title == ""
-        assert tasklist.etag == ""
-        assert tasklist.updated == ""
-        assert tasklist.self_link == ""
+        with pytest.raises(ValueError, match="Failed to parse tasklist data"):
+            GTaskList(raw_data=malformed_json)
 
     def test_empty_json_string(self) -> None:
         """Test handling of empty JSON string."""
@@ -95,26 +92,18 @@ class TestEdgeCases:
         assert tasklist.self_link == ""
 
     def test_invalid_json(self) -> None:
-        """Test handling of completely invalid JSON."""
+        """Test handling of completely invalid JSON raises ValueError."""
         invalid_json = "This is not JSON at all!!!"
 
-        tasklist = GTaskList(raw_data=invalid_json)
-
-        assert tasklist.id == ""
-        assert tasklist.title == ""
-        assert tasklist.etag == ""
-        assert tasklist.updated == ""
-        assert tasklist.self_link == ""
+        with pytest.raises(ValueError, match="Failed to parse tasklist data"):
+            GTaskList(raw_data=invalid_json)
 
     def test_whitespace_only_json(self) -> None:
-        """Test JSON string that is only whitespace characters."""
+        """Test JSON string that is only whitespace characters raises ValueError."""
         whitespace_json = "   \t\n  "
 
-        tasklist = GTaskList(raw_data=whitespace_json)
-
-        assert tasklist.id == ""
-        assert tasklist.title == ""
-        assert isinstance(tasklist.etag, str)
+        with pytest.raises(ValueError, match="Failed to parse tasklist data"):
+            GTaskList(raw_data=whitespace_json)
 
     def test_non_ascii_tasklist_id(self) -> None:
         """Test non-ASCII characters in tasklist ID."""
@@ -184,7 +173,10 @@ class TestEdgeCases:
             assert tasklist.title == "Repeat Test"
             assert tasklist.etag == "etag_repeat"
             assert tasklist.updated == "2025-07-30T10:30:00Z"
-            assert tasklist.self_link == "https://www.googleapis.com/tasks/v1/lists/repeat123"
+            assert (
+                tasklist.self_link
+                == "https://www.googleapis.com/tasks/v1/lists/repeat123"
+            )
 
     def test_tasklist_with_only_id_and_title(self) -> None:
         """Test tasklist that contains only id and title fields."""
@@ -245,9 +237,7 @@ class TestEdgeCases:
 
     def test_tasklist_with_complex_self_link(self) -> None:
         """Test tasklist with complex selfLink URL."""
-        complex_link = (
-            "https://www.googleapis.com/tasks/v1/users/@me/lists/tasklist123?fields=id,title"
-        )
+        complex_link = "https://www.googleapis.com/tasks/v1/users/@me/lists/tasklist123?fields=id,title"
         tasklist_data = {
             "id": "complexlink123",
             "title": "Complex Self Link Test",

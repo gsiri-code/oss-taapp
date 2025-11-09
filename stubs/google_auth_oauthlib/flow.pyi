@@ -1,6 +1,5 @@
 """Stub file for google_auth_oauthlib.flow."""
 
-from typing import Any
 from google.oauth2.credentials import Credentials
 
 class Flow:
@@ -14,7 +13,7 @@ class Flow:
         client_secrets_file: str,
         scopes: list[str] | None = None,
         redirect_uri: str | None = None,
-    ) -> "Flow": ...
+    ) -> Flow: ...
     def fetch_token(
         self,
         code: str | None = None,
@@ -35,7 +34,7 @@ class InstalledAppFlow(Flow):
         client_secrets_file: str,
         scopes: list[str] | None = None,
         redirect_uri: str | None = None,
-    ) -> "InstalledAppFlow": ...
+    ) -> InstalledAppFlow: ...
     def run_local_server(
         self,
         port: int = 0,

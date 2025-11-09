@@ -15,8 +15,10 @@ class GTask(task.Task):
         self._raw_data = raw_data
         try:
             self._data = json.loads(raw_data)
-        except json.JSONDecodeError:
-            self._data = {}
+        except json.decoder.JSONDecodeError as e:
+            raise ValueError(
+                f"Failed to parse task data: {raw_data}",
+            ) from e
 
     @property
     def id(self) -> str:
@@ -31,7 +33,7 @@ class GTask(task.Task):
     @property
     def notes(self) -> str | None:
         """Get the task notes."""
-        return cast("str | None", self._data.get("notes"))
+        return self._data.get("notes")
 
     @property
     def status(self) -> str:

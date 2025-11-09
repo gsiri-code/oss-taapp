@@ -34,16 +34,12 @@ async def list_tasklists(client: TaskClientDep) -> list[dict[str, str]]:
         tasklists: list[ServiceTaskList] = client.list_tasklists()
         logger.info("Retrieved %d tasklists", len(tasklists))
 
-        formatted_tasklists: list[dict[str, str]] = []
-
-        formatted_tasklists = [tasklist_to_dict(tasklist) for tasklist in tasklists]
-
     except Exception as e:
         logger.critical(e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
     else:
-        logger.info("Successfully formatted %d tasklists", len(formatted_tasklists))
-        return formatted_tasklists
+        logger.info("Successfully formatted %d tasklists", len(tasklists))
+        return [tasklist_to_dict(tasklist) for tasklist in tasklists]
 
 
 @router.post("")

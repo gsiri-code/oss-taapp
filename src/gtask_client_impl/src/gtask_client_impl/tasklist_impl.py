@@ -15,13 +15,16 @@ class GTaskList(tasklist.TaskList):
         self._raw_data = raw_data
         try:
             self._data = json.loads(raw_data)
-        except json.JSONDecodeError:
-            self._data = {}
+        except json.decoder.JSONDecodeError as e:
+            raise ValueError(
+                f"Failed to parse tasklist data: {raw_data}",
+            ) from e
 
     @property
     def id(self) -> str:
         """Get the unique task list identifier."""
-        return cast("str", self._data.get("id", ""))
+        v = self._data.get("id")
+        return v if isinstance(v, str) else ""
 
     @property
     def title(self) -> str:

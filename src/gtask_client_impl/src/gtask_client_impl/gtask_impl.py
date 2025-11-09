@@ -13,7 +13,6 @@ import json
 import logging
 import os
 from pathlib import Path
-from types import ModuleType
 from typing import Any, ClassVar
 
 import requests
@@ -103,10 +102,18 @@ class GTaskClient(task_client_api.Client):
 
         # Fallback to other methods if session credentials are not available
         if not creds and not interactive:
-            creds = self._auth_from_env()
+            try:
+                creds = self._auth_from_env()
+            except (GoogleAuthError, RefreshError, OSError, ValueError) as e:
+                self.logger.debug(
+                    "Failed to authenticate from environment variables: %s", e
+                )
 
         if not creds and not interactive:
-            creds = self._auth_from_token_file(token_path)
+            try:
+                creds = self._auth_from_token_file(token_path)
+            except (GoogleAuthError, RefreshError, OSError, ValueError) as e:
+                self.logger.debug("Failed to authenticate from token file: %s", e)
 
         if not creds or (creds and not creds.valid and not creds.refresh_token):
             if not interactive:
@@ -260,7 +267,13 @@ class GTaskClient(task_client_api.Client):
             optional: TASKS_TOKEN_URI
 
         Returns:
-            A refreshed Credentials object on success, or None on failure.
+            A refreshed Credentials object on success, or None if env vars are not set.
+
+        Raises:
+            GoogleAuthError: If authentication fails due to invalid credentials.
+            RefreshError: If token refresh fails.
+            OSError: If network or system errors occur.
+            ValueError: If credential parameters are invalid.
 
         """
         client_id = os.environ.get("TASKS_CLIENT_ID")
@@ -273,19 +286,16 @@ class GTaskClient(task_client_api.Client):
         if not (client_id and client_secret and refresh_token):
             return None
 
-        try:
-            creds = Credentials(  # type: ignore[no-untyped-call]
-                None,
-                refresh_token=refresh_token,
-                token_uri=token_uri,
-                client_id=client_id,
-                client_secret=client_secret,
-                scopes=self.SCOPES,
-            )
-            creds.refresh(Request())  # type: ignore[no-untyped-call]
-            return creds  # noqa: TRY300
-        except (GoogleAuthError, RefreshError, OSError, ValueError):
-            return None
+        creds = Credentials(  # type: ignore[no-untyped-call]
+            None,
+            refresh_token=refresh_token,
+            token_uri=token_uri,
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=self.SCOPES,
+        )
+        creds.refresh(Request())  # type: ignore[no-untyped-call]
+        return creds
 
     def _auth_from_token_file(self, token_path: str) -> Credentials | None:
         """Attempt to load credentials from a token file and refresh if needed.
@@ -294,25 +304,25 @@ class GTaskClient(task_client_api.Client):
             token_path: Path to token file.
 
         Returns:
-            A valid Credentials object or None if loading/refresh fails.
+            A valid Credentials object or None if token file does not exist.
+
+        Raises:
+            GoogleAuthError: If authentication fails due to invalid credentials.
+            RefreshError: If token refresh fails.
+            OSError: If file I/O or network errors occur.
+            ValueError: If credential parameters are invalid.
 
         """
-        try:
-            if not Path(token_path).exists():
-                return None
-
-            creds = Credentials.from_authorized_user_file(  # type: ignore[no-untyped-call]
-                token_path,
-                self.SCOPES,
-            )
-
-            if creds and not creds.valid and creds.refresh_token:
-                try:
-                    creds.refresh(Request())  # type: ignore[no-untyped-call]
-                except (GoogleAuthError, RefreshError, OSError, ValueError):
-                    return None
-        except (GoogleAuthError, RefreshError, OSError, ValueError):
+        if not Path(token_path).exists():
             return None
+
+        creds = Credentials.from_authorized_user_file(  # type: ignore[no-untyped-call]
+            token_path,
+            self.SCOPES,
+        )
+
+        if creds and not creds.valid and creds.refresh_token:
+            creds.refresh(Request())  # type: ignore[no-untyped-call]
 
         return creds  # type: ignore[no-any-return]
 
@@ -386,10 +396,17 @@ class GTaskClient(task_client_api.Client):
                 .delete(tasklist=tasklist_id)
                 .execute()
             )
-        except (HttpError, OSError, ValueError) as e:
-            self.logger.exception("Failed to delete tasklist %s", tasklist_id)
-            self.logger.debug("Error details: %s", e)
-            return False
+        except HttpError as e:
+            if e.status_code == 404:
+                raise RuntimeError(f"Task list '{tasklist_id}' not found") from e
+            elif e.status_code == 401:
+                raise RuntimeError("Unauthorized – credentials expired") from e
+            else:
+                raise RuntimeError(f"Google API error: {e}") from e
+        except RefreshError as e:
+            raise RuntimeError("Credential or network problem") from e
+        except Exception as e:
+            raise RuntimeError(f"Unexpected error: {e}") from e
         else:
             return True
 
@@ -482,7 +499,6 @@ class GTaskClient(task_client_api.Client):
         Args:
             tasklist_id: The ID of the tasklist to insert the task into.
             task: Task carrying the title to create.
-                        (e.g., title, notes, status, due, parent, previous).
 
         Returns:
             The inserted task with updated fields.
