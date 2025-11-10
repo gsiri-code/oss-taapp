@@ -19,7 +19,7 @@ import mail_client_api
 from google.auth.exceptions import GoogleAuthError, RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore[import-untyped]
+from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import Resource, build
 from googleapiclient.errors import HttpError
 from mail_client_api import message
@@ -123,7 +123,8 @@ class GmailClient(mail_client_api.Client):
         opening the user's browser to complete authentication with Google.
         """
         if not Path(creds_path).exists():
-            raise FileNotFoundError(f"'{creds_path}' not found. Cannot run interactive auth.")  # noqa: EM102 TRY003
+            msg = f"'{creds_path}' not found. Cannot run interactive auth."
+            raise FileNotFoundError(msg)
         flow = InstalledAppFlow.from_client_secrets_file(
             creds_path,
             self.SCOPES,

@@ -1,5 +1,6 @@
 """Configuration for integration tests to handle dependency injection isolation."""
 
+from collections.abc import Generator
 from typing import Never
 
 import pytest
@@ -8,7 +9,7 @@ import mail_client_api
 
 
 @pytest.fixture(autouse=True)
-def reset_dependency_injection() -> None:
+def reset_dependency_injection() -> Generator[None, None, None]:
     """Reset dependency injection before each test to ensure test isolation.
 
     This fixture runs automatically before each test function to ensure that
@@ -34,7 +35,7 @@ def reset_dependency_injection() -> None:
 
 
 @pytest.fixture(autouse=True)
-def reset_message_dependency_injection() -> None:
+def reset_message_dependency_injection() -> Generator[None, None, None]:
     """Reset message dependency injection before each test to ensure test isolation."""
     # Store the original get_message function
     original_get_message = getattr(mail_client_api.message, "get_message", None)

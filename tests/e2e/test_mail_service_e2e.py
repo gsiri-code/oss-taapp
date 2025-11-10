@@ -1,16 +1,22 @@
-# ruff: noqa: ERA001
 """End-to-end tests for the mail service."""
 
 import os
+import queue
 import socket
 import subprocess
 import time
+from collections.abc import Callable, Generator
 from contextlib import closing, suppress
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
+import httpx
 import pytest
 from dotenv import load_dotenv
+
+from mail_client_adapter import ServiceClientAdapter
+from mail_client_service_client import Client
 
 # Load environment variables from .env file
 load_dotenv()
@@ -32,7 +38,13 @@ class HTTPStatus(Enum):
     INTERNAL_SERVER_ERROR = 500
 
 
-def _free_port() -> int:
+# Constants for test thresholds
+MAX_SUBJECT_LENGTH = 200
+LARGE_MESSAGE_BODY_THRESHOLD = 1000
+TUPLE_WITH_RESPONSE_TIME_LENGTH = 2
+
+
+def _free_port() -> Any:
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
         s.bind(("", 0))
         return s.getsockname()[1]
@@ -55,19 +67,24 @@ def _wait_for_ready(base_url: str, timeout_s: int = 45) -> None:
 
 
 @pytest.fixture(scope="session")
-def service_base_url(tmp_path_factory) -> None:  # noqa: ANN001
+def service_base_url(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Generator[str, None, None]:
     """Start the real FastAPI service in a separate process (uvicorn) so we hit it over HTTP."""
+    # Calculate workspace root (tests/e2e/test_mail_service_e2e.py -> tests/e2e -> tests -> workspace root)
+    workspace_root = Path(__file__).resolve().parents[2]
+
     port = _free_port()
     base_url = f"http://127.0.0.1:{port}"
 
     env = os.environ.copy()
 
-    # Ensure the child process can import your `src/` tree
+    # Ensure the child process can import your `src/` tree using absolute paths
     src_paths = [
-        str(Path("src/mail_client_api/src").resolve()),
-        str(Path("src/mail_client_adapter/src").resolve()),
-        str(Path("src/gmail_client_impl/src").resolve()),
-        str(Path("src/mail_client_service/src").resolve()),
+        str(workspace_root / "src/mail_client_api/src"),
+        str(workspace_root / "src/mail_client_adapter/src"),
+        str(workspace_root / "src/gmail_client_impl/src"),
+        str(workspace_root / "src/mail_client_service/src"),
     ]
     env["PYTHONPATH"] = os.pathsep.join([*src_paths, env.get("PYTHONPATH", "")])
 
@@ -75,7 +92,7 @@ def service_base_url(tmp_path_factory) -> None:  # noqa: ANN001
     env["MAIL_CLIENT_INTERACTIVE"] = "false"
 
     # Example if you need a token path:
-    # env["GMAIL_TOKEN_FILE"] = os.path.abspath("token.json")
+    # env["GMAIL_TOKEN_FILE"] = str(workspace_root / "token.json")
 
     # === The key fix: target the module filename and point uvicorn at the directory ===
     cmd = [
@@ -86,7 +103,7 @@ def service_base_url(tmp_path_factory) -> None:  # noqa: ANN001
         "uvicorn",
         "mail_client_service.fast_api_service:app",  # module:var (src/mail_client_service/src/mail_client_service/fast_api_service.py defines app = FastAPI(...))
         "--app-dir",
-        "src/mail_client_service/src",  # directory that contains mail_client_service package
+        str(workspace_root / "src/mail_client_service/src"),  # directory that contains mail_client_service package
         "--host",
         "127.0.0.1",
         "--port",
@@ -100,13 +117,15 @@ def service_base_url(tmp_path_factory) -> None:  # noqa: ANN001
         stderr=subprocess.STDOUT,
         text=True,
         shell=False,
+        cwd=str(workspace_root),  # Run from workspace root
     )
 
     try:
         _wait_for_ready(base_url, timeout_s=45)
     except Exception:
         if proc.stdout:
-            pass
+            output = proc.stdout.read()
+            print(f"Service startup failed. Output:\n{output}")  # noqa: T201
         proc.kill()
         raise
 
@@ -120,18 +139,16 @@ def service_base_url(tmp_path_factory) -> None:  # noqa: ANN001
 
 
 @pytest.fixture(scope="session")
-def shared_client(service_base_url: str):  # noqa: ANN201 # return type: Client
+def shared_client(service_base_url: str) -> Client:
     """Session-scoped fixture that provides a shared HTTP client for all tests."""
-    from mail_client_service_client import Client
-
     return Client(
         base_url=service_base_url,
-        timeout=30.0,  # Reasonable timeout for E2E tests
+        timeout=httpx.Timeout(30.0),  # Reasonable timeout for E2E tests
     )
 
 
 @pytest.fixture
-def mail_adapter_client(shared_client):  # noqa: ANN001, ANN201 # Client
+def mail_adapter_client(shared_client: Client) -> ServiceClientAdapter:
     """Fixture that provides a configured mail adapter client for testing."""
     from mail_client_adapter import ServiceClientAdapter
 
@@ -139,7 +156,7 @@ def mail_adapter_client(shared_client):  # noqa: ANN001, ANN201 # Client
 
 
 @pytest.fixture
-def ci_mail_adapter_client(shared_client):  # noqa: ANN001, ANN201 # Client
+def ci_mail_adapter_client(shared_client: Client) -> ServiceClientAdapter:
     """Fixture that provides a CI-optimized mail adapter client for testing."""
     from mail_client_adapter import ServiceClientAdapter
 
@@ -147,7 +164,7 @@ def ci_mail_adapter_client(shared_client):  # noqa: ANN001, ANN201 # Client
 
 
 @pytest.fixture
-def sample_messages(mail_adapter_client):  # noqa: ANN001, ANN201 # ServiceClientAdapter
+def sample_messages(mail_adapter_client: ServiceClientAdapter) -> list[Any]:
     """Fixture that provides sample messages for testing."""
     try:
         return list(mail_adapter_client.get_messages(max_results=3))
@@ -169,7 +186,7 @@ def service_health_check(service_base_url: str) -> bool | None:
 
 
 # Test utility functions
-def validate_message_structure(message) -> bool:  # noqa: ANN001 # Message
+def validate_message_structure(message: Any) -> bool:
     """Validate that a message has the required structure."""
     required_fields = ["id", "subject", "from_", "date", "body"]
 
@@ -183,7 +200,7 @@ def validate_message_structure(message) -> bool:  # noqa: ANN001 # Message
     return True
 
 
-def validate_http_response_structure(response_data: dict) -> bool:
+def validate_http_response_structure(response_data: dict[str, Any]) -> bool:
     """Validate that HTTP response has the required structure."""
     required_keys = ["id", "from", "to", "subject", "date", "body"]
 
@@ -196,7 +213,7 @@ def validate_http_response_structure(response_data: dict) -> bool:
     return True
 
 
-def measure_performance(func, *args, **kwargs):  # noqa: ANN001, ANN003, ANN002, ANN201
+def measure_performance(func: Callable[..., Any], *args: Any, **kwargs: Any) -> tuple[Any, float]:
     """Measure the performance of a function call."""
     import time
 
@@ -210,7 +227,7 @@ def measure_performance(func, *args, **kwargs):  # noqa: ANN001, ANN003, ANN002,
 @pytest.mark.e2e
 @pytest.mark.local_credentials
 def test_e2e_service_adapter_calls_real_gmail_api(
-    mail_adapter_client,  # noqa: ANN001 # ServiceClientAdapter
+    mail_adapter_client: ServiceClientAdapter,
     service_health_check: bool | None,  # noqa: FBT001
 ) -> None:
     """E2E test that uses mail_client_adapter to call running service with real Gmail API.
@@ -243,7 +260,7 @@ def test_e2e_service_adapter_calls_real_gmail_api(
 @pytest.mark.local_credentials
 def test_e2e_comprehensive_service_operations(
     service_base_url: str,
-    mail_adapter_client,  # noqa: ANN001 # ServiceClientAdapter
+    mail_adapter_client: ServiceClientAdapter,
 ) -> None:
     """Comprehensive E2E test with error handling and delete operations.
 
@@ -452,7 +469,7 @@ def test_e2e_service_failure_scenarios() -> None:
 @pytest.mark.local_credentials
 def test_e2e_comprehensive_error_scenarios(  # noqa: PLR0915, PLR0912, C901
     service_base_url: str,
-    mail_adapter_client,  # noqa: ANN001 # ServiceClientAdapter
+    mail_adapter_client: ServiceClientAdapter,
 ) -> None:
     """Comprehensive E2E test for various error scenarios and edge cases.
 
@@ -486,7 +503,9 @@ def test_e2e_comprehensive_error_scenarios(  # noqa: PLR0915, PLR0912, C901
             adapter.get_message(invalid_id)
             pytest.fail(f"Expected RuntimeError for invalid ID: {invalid_id!r}")
         except RuntimeError as e:
-            assert "not found" in str(e).lower() or "failed" in str(e).lower()  # noqa: PT017
+            assert (  # noqa: PT017 - Need to assert exception message content to validate error handling
+                "not found" in str(e).lower() or "failed" in str(e).lower()
+            )
         except Exception as e:
             # Some invalid IDs might cause different types of errors
             pytest.fail(f"Invalid ID test failed with Exception: {e}")
@@ -497,7 +516,7 @@ def test_e2e_comprehensive_error_scenarios(  # noqa: PLR0915, PLR0912, C901
 
     timeout_client = Client(
         base_url=service_base_url,
-        timeout=0.001,  # Very short timeout
+        timeout=httpx.Timeout(0.001),  # Very short timeout
     )
     timeout_adapter = ServiceClientAdapter(timeout_client)
 
@@ -509,10 +528,9 @@ def test_e2e_comprehensive_error_scenarios(  # noqa: PLR0915, PLR0912, C901
         pytest.fail(f"Network timeout scenarios test failed: {e}")
 
     # Test 3: Concurrent request handling
-    import queue
     import threading
 
-    results_queue = queue.Queue()
+    results_queue: queue.Queue[tuple[str, Any]] = queue.Queue()
 
     def make_concurrent_request() -> None:
         try:
@@ -571,7 +589,7 @@ def test_e2e_comprehensive_error_scenarios(  # noqa: PLR0915, PLR0912, C901
 @pytest.mark.local_credentials
 def test_e2e_data_integrity_and_validation(  # noqa: PLR0915, PLR0912, C901
     service_base_url: str,
-    mail_adapter_client,  # noqa: ANN001 # ServiceClientAdapter
+    mail_adapter_client: ServiceClientAdapter,
 ) -> None:
     """E2E test for data integrity, validation, and message format verification.
 
@@ -674,7 +692,7 @@ def test_e2e_data_integrity_and_validation(  # noqa: PLR0915, PLR0912, C901
             if len(msg.body) > 10000:  # noqa: PLR2004 # arbitrary for long body
                 pass
 
-            if len(msg.subject) > 200:  # noqa: PLR2004 # arbitrary for long subject line
+            if len(msg.subject) > MAX_SUBJECT_LENGTH:  # arbitrary for long subject line
                 pass
 
             # Check for special characters in content
@@ -973,7 +991,7 @@ def test_e2e_data_integrity_and_validation(  # noqa: PLR0915, PLR0912, C901
 @pytest.mark.local_credentials
 @pytest.mark.parametrize("max_results", [1, 3, 5, 10])
 def test_e2e_get_messages_with_different_limits(
-    mail_adapter_client,  # noqa: ANN001 # ServiceClientAdapter
+    mail_adapter_client: ServiceClientAdapter,
     max_results: int,
 ) -> None:
     """Parametrized test for get_messages with different result limits.
@@ -1006,7 +1024,7 @@ def test_e2e_get_messages_with_different_limits(
         "!@#$%^&*()",
     ],
 )
-def test_e2e_get_message_with_invalid_ids(mail_adapter_client, invalid_id: str) -> None:  # noqa: ANN001 # ServiceClientAdapter
+def test_e2e_get_message_with_invalid_ids(mail_adapter_client: ServiceClientAdapter, invalid_id: str) -> None:
     """Parametrized test for get_message with various invalid IDs.
 
     Tests:
@@ -1025,7 +1043,9 @@ def test_e2e_get_message_with_invalid_ids(mail_adapter_client, invalid_id: str) 
         pytest.fail(f"Expected exception for invalid ID: {invalid_id!r}, but no exception was raised")
     except RuntimeError as e:
         # Invalid ID was successfully caught with RuntimeError
-        assert "not found" in str(e).lower() or "failed" in str(e).lower()  # noqa: PT017
+        assert (  # noqa: PT017 - Need to assert exception message content to validate error handling
+            "not found" in str(e).lower() or "failed" in str(e).lower()
+        )
     except Exception as e:
         pytest.fail(f"Invalid ID test failed with Exception: {e}")
 
@@ -1034,8 +1054,8 @@ def test_e2e_get_message_with_invalid_ids(mail_adapter_client, invalid_id: str) 
 @pytest.mark.local_credentials
 @pytest.mark.parametrize("operation", ["get_message", "mark_as_read", "delete_message"])
 def test_e2e_operations_with_sample_messages(
-    mail_adapter_client,  # noqa: ANN001 # ServiceClientAdapter
-    sample_messages,  # noqa: ANN001 # list[Message]
+    mail_adapter_client: ServiceClientAdapter,
+    sample_messages: list[Any],
     operation: str,
 ) -> None:
     """Parametrized test for different operations on sample messages.
@@ -1144,7 +1164,9 @@ def test_e2e_operations_with_sample_messages(
 
 @pytest.mark.e2e
 @pytest.mark.local_credentials
-def test_e2e_performance_benchmarks(mail_adapter_client) -> None:  # noqa: ANN001 # import ServiceClientAdapter kept seperate
+def test_e2e_performance_benchmarks(
+    mail_adapter_client: ServiceClientAdapter,
+) -> None:
     """Performance benchmark tests using utility functions.
 
     Tests:
@@ -1456,7 +1478,9 @@ def test_e2e_performance_benchmarks(mail_adapter_client) -> None:  # noqa: ANN00
 
 @pytest.mark.e2e
 @pytest.mark.local_credentials
-def test_e2e_gmail_message_parsing_edge_cases(service_base_url: str) -> None:  # noqa: C901
+def test_e2e_gmail_message_parsing_edge_cases(  # noqa: C901 - E2E test intentionally comprehensive to cover multiple edge cases
+    service_base_url: str,
+) -> None:
     """E2E test for Gmail message parsing edge cases and error handling.
 
     Tests:
@@ -1515,7 +1539,7 @@ def test_e2e_gmail_message_parsing_edge_cases(service_base_url: str) -> None:  #
         # Request larger messages to test size handling
         messages = list(adapter.get_messages(max_results=20))
 
-        large_messages = [msg for msg in messages if len(msg.body) > 1000]  # noqa: PLR2004 # arbitrary for large message
+        large_messages = [msg for msg in messages if len(msg.body) > LARGE_MESSAGE_BODY_THRESHOLD]  # arbitrary for large message
 
         for _i, msg in enumerate(large_messages[:3]):  # Test first 3 large messages
             # Test that we can still access all fields
@@ -1554,7 +1578,9 @@ def test_e2e_gmail_message_parsing_edge_cases(service_base_url: str) -> None:  #
 
 @pytest.mark.e2e
 @pytest.mark.local_credentials
-def test_e2e_service_initialization_and_lifecycle(service_base_url: str) -> None:  # noqa: PLR0915, PLR0912, C901
+def test_e2e_service_initialization_and_lifecycle(  # noqa: C901, PLR0912, PLR0915 - E2E test intentionally comprehensive to validate full service lifecycle
+    service_base_url: str,
+) -> None:
     """E2E test for service initialization and lifecycle management.
 
     Tests:
@@ -1651,7 +1677,7 @@ def test_e2e_service_initialization_and_lifecycle(service_base_url: str) -> None
         import queue
         import threading
 
-        results_queue = queue.Queue()
+        results_queue: queue.Queue[tuple[str, ...]] = queue.Queue()
 
         def make_request() -> None:
             try:
@@ -1676,13 +1702,15 @@ def test_e2e_service_initialization_and_lifecycle(service_base_url: str) -> None
         # Collect results
         success_count = 0
         error_count = 0
-        total_time = 0
+        total_time = 0.0
 
         while not results_queue.empty():
-            result_type, _data, response_time = results_queue.get()
+            result_tuple = results_queue.get()
+            result_type = result_tuple[0]
             if result_type == "success":
                 success_count += 1
-                total_time += response_time
+                if len(result_tuple) > TUPLE_WITH_RESPONSE_TIME_LENGTH:
+                    total_time += result_tuple[2]  # response_time
             else:
                 error_count += 1
 
@@ -1697,7 +1725,9 @@ def test_e2e_service_initialization_and_lifecycle(service_base_url: str) -> None
 
 @pytest.mark.e2e
 @pytest.mark.local_credentials
-def test_e2e_mail_client_service_direct_integration(service_base_url: str) -> None:  # noqa: PLR0915, PLR0912, C901
+def test_e2e_mail_client_service_direct_integration(  # noqa: C901, PLR0912, PLR0915 - E2E test intentionally comprehensive to cover all integration scenarios
+    service_base_url: str,
+) -> None:
     """E2E test for direct mail client service integration.
 
     Tests:
@@ -1831,7 +1861,9 @@ def test_e2e_mail_client_service_direct_integration(service_base_url: str) -> No
 
 @pytest.mark.e2e
 @pytest.mark.local_credentials
-def test_e2e_comprehensive_api_coverage(service_base_url: str) -> None:  # noqa: PLR0915, PLR0912, C901
+def test_e2e_comprehensive_api_coverage(  # noqa: C901, PLR0912, PLR0915 - E2E test intentionally comprehensive to test all API endpoints and edge cases
+    service_base_url: str,
+) -> None:
     """E2E test for comprehensive API coverage and edge cases.
 
     Tests:
@@ -1840,13 +1872,11 @@ def test_e2e_comprehensive_api_coverage(service_base_url: str) -> None:  # noqa:
     - Error scenarios
     - Performance under load
     """
-    import queue
     import threading
     import time
 
     import httpx
 
-    from mail_client_adapter import ServiceClientAdapter
     from mail_client_service_client import Client
 
     # Test 1: Complete API endpoint coverage
@@ -1945,7 +1975,7 @@ def test_e2e_comprehensive_api_coverage(service_base_url: str) -> None:  # noqa:
 
     try:
 
-        def load_test_worker(results_queue: queue.Queue) -> None:
+        def load_test_worker(results_queue: queue.Queue[tuple[str, Any]]) -> None:
             try:
                 start_time = time.time()
 
@@ -1964,7 +1994,7 @@ def test_e2e_comprehensive_api_coverage(service_base_url: str) -> None:  # noqa:
                 results_queue.put(("error", str(e)))
 
         # Run load test with multiple workers
-        results_queue = queue.Queue()
+        results_queue: queue.Queue[tuple[str, Any]] = queue.Queue()
         threads = []
 
         for _i in range(5):  # 5 concurrent workers
@@ -2129,7 +2159,9 @@ def test_e2e_comprehensive_api_coverage(service_base_url: str) -> None:  # noqa:
 
 @pytest.mark.e2e
 @pytest.mark.local_credentials
-def test_e2e_mail_client_service_coverage(service_base_url: str) -> None:  # noqa: PLR0915, PLR0912, C901
+def test_e2e_mail_client_service_coverage(  # noqa: C901, PLR0912, PLR0915 - E2E test intentionally comprehensive to ensure full service coverage
+    service_base_url: str,
+) -> None:
     """E2E test for mail client service coverage.
 
     Tests:
@@ -2250,8 +2282,10 @@ def test_e2e_mail_client_service_coverage(service_base_url: str) -> None:  # noq
 
         avg_time = sum(response_times) / len(response_times)
 
+        expected_response_time = 2.0
+
         # Validate performance
-        assert avg_time < 2.0, f"Average response time too high: {avg_time:.3f}s"  # noqa: PLR2004
+        assert avg_time < expected_response_time, f"Average response time too high: {avg_time:.3f}s"
 
     except Exception as e:
         pytest.fail(f"Performance and reliability test failed: {e}")

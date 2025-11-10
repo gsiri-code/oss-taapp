@@ -339,7 +339,7 @@ def test_application_structure_integrity() -> None:
 
     This can run in any environment.
     """
-    workspace_root = Path(__file__).parent.parent.parent
+    workspace_root = Path(__file__).resolve().parents[2]
 
     expected_files = [
         "main.py",
