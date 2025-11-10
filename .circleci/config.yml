@@ -287,8 +287,7 @@ workflows:
   build_and_test:
     jobs:
       # Build runs on all branches to support integration/e2e tests on all branches
-      - build:
-        # No branch filters - runs on all branches
+      - build
       - lint:
           requires:
             - build
@@ -381,23 +380,19 @@ workflows:
           requires:
             - build
 
-
       - circleci_test:
           requires:
             - unit_test
-
 
       - integration_test:
           requires:
             - circleci_test
           context: hw1 # Context containing Gmail and Google Tasks API credentials
 
-
       - e2e_test:
           requires:
             - integration_test
           context: hw1
-
 
       - report_summary:
           requires:
@@ -405,4 +400,3 @@ workflows:
             - circleci_test
             - integration_test
             - e2e_test
-
