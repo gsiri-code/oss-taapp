@@ -8,10 +8,9 @@ import logging
 
 import pytest
 
-import gtask_client_impl  # Import to trigger dependency injection
+import gtask_client_impl
 import task_client_api
 
-# Mark all tests in this file as integration tests
 pytestmark = pytest.mark.integration
 
 logger = logging.getLogger(__name__)
@@ -20,12 +19,10 @@ logger = logging.getLogger(__name__)
 @pytest.fixture(autouse=True)
 def setup_gtask_dependency_injection() -> None:
     """Set up GTask client dependency injection for each test in this file."""
-    # Import and register the GTask client implementation
     import gtask_client_impl
 
     gtask_client_impl.register()
 
-    # Also register the task and tasklist implementations
     from gtask_client_impl.task_impl import register as register_task
 
     register_task()
@@ -44,31 +41,27 @@ def test_get_client_and_authenticate() -> None:
     and makes a live, read-only call to the Google Tasks API.
     """
     try:
-        # 1. Get the client using the abstract factory
         client = task_client_api.get_client(interactive=False)
-
-        # 2. Assert that we received the correct implementation
         assert isinstance(client, gtask_client_impl.GTaskClient)
 
     except FileNotFoundError:
         pytest.skip("Skipping integration test: credentials.json not found.")
     except RuntimeError as e:
-        # Skip if credentials are missing (expected in CI without credentials)
-        if "Failed to obtain credentials" in str(e) or "No valid credentials found" in str(e):
+        if "Failed to obtain credentials" in str(
+            e
+        ) or "No valid credentials found" in str(e):
             pytest.skip(f"Skipping integration test: {e}")
         else:
-            pytest.fail(f"Integration test failed during authentication or API call: {e}")
+            pytest.fail(
+                f"Integration test failed during authentication or API call: {e}"
+            )
     except (ValueError, ConnectionError) as e:
         pytest.fail(f"Integration test failed during authentication or API call: {e}")
 
 
 @pytest.mark.circleci
 def test_dependency_injection_works() -> None:
-    """Tests that importing the implementation packages correctly overrides.
-
-    The factory functions in the abstract contract packages.
-    This test doesn't require credentials, only tests imports and factory setup.
-    """
+    """Tests that importing the implementation packages correctly overrides the factory functions in the abstract contract packages."""
     try:
         client = task_client_api.get_client(interactive=False)
         assert isinstance(client, gtask_client_impl.GTaskClient)
@@ -83,7 +76,6 @@ def test_dependency_injection_works() -> None:
         if "No valid credentials found" in str(
             e
         ) or "Failed to obtain credentials" in str(e):
-            # This is expected in CI without credentials - the factory works, just can't authenticate
             pass
         else:
             raise
@@ -105,10 +97,8 @@ def test_task_dependency_injection() -> None:
     }
     raw_data = json.dumps(task_data)
 
-    # Call the abstract factory - should use our implementation
     task = task_client_api.get_task(raw_data=raw_data)
 
-    # Verify it returns our GTask implementation
     assert isinstance(task, gtask_client_impl.GTask)
     assert task.id == "di123"
     assert task.title == "Dependency Injection Test Task"
@@ -133,10 +123,8 @@ def test_tasklist_dependency_injection() -> None:
     }
     raw_data = json.dumps(tasklist_data)
 
-    # Call the abstract factory - should use our implementation
     tasklist = task_client_api.get_tasklist(raw_data=raw_data)
 
-    # Verify it returns our GTaskList implementation
     assert isinstance(tasklist, gtask_client_impl.GTaskList)
     assert tasklist.id == "di_tl_123"
     assert tasklist.title == "Dependency Injection Test TaskList"
@@ -182,7 +170,9 @@ def test_client_scope_permissions() -> None:
         pytest.skip("Skipping integration test: credentials.json not found.")
     except RuntimeError as e:
         # Skip if credentials are missing (expected in CI without credentials)
-        if "Failed to obtain credentials" in str(e) or "No valid credentials found" in str(e):
+        if "Failed to obtain credentials" in str(
+            e
+        ) or "No valid credentials found" in str(e):
             pytest.skip(f"Skipping integration test: {e}")
         else:
             pytest.fail(f"Integration test failed: {e}")

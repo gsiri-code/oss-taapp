@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Never
 from unittest.mock import MagicMock
 
 import pytest
 from starlette.testclient import TestClient
+from task_client_adapter.service_task import register as register_task
+from task_client_adapter.service_tasklist import register as register_tasklist
 
 import gtask_client_impl
 import task_client_api
@@ -98,6 +103,17 @@ class MockServiceContext:
     mock_client: Client
 
 
+@dataclass
+class MockClientContext:
+    """Context for creating mock client side effects."""
+
+    default_tasklist: MagicMock
+    mock_tasklist: MagicMock
+    mock_task: MagicMock
+    mock_tasklist_data: dict[str, str]
+    mock_task_data: dict[str, str | bool | None]
+
+
 class DummyTask:
     """Dummy task for testing."""
 
@@ -110,6 +126,7 @@ class DummyTask:
         status: str = "needsAction",
         due: str | None = None,
         completed: str | None = None,
+        *,
         deleted: bool = False,
         hidden: bool = False,
     ) -> None:
@@ -152,15 +169,8 @@ def _register_adapter_implementations() -> None:
     task_client_adapter.register()
 
     # Also register the service task and tasklist implementations
-    from task_client_adapter.service_task import (
-        register as register_task,
-    )
 
     register_task()
-
-    from task_client_adapter.service_tasklist import (
-        register as register_tasklist,
-    )
 
     register_tasklist()
 
@@ -171,10 +181,9 @@ def setup_adapter_dependency_injection() -> None:
     _register_adapter_implementations()
 
 
-@pytest.fixture
-def mock_gtask_client() -> tuple[MagicMock, dict[str, str], dict[str, str]]:
-    """Create a mock GTask client with test data."""
-    mock_tasklist_data = {
+def _create_mock_tasklist_data() -> dict[str, str]:
+    """Create mock tasklist data dictionary."""
+    return {
         "id": "test_tl_123",
         "title": "Test Integration TaskList",
         "etag": "etag-123",
@@ -182,7 +191,10 @@ def mock_gtask_client() -> tuple[MagicMock, dict[str, str], dict[str, str]]:
         "self_link": "https://tasks.googleapis.com/tasks/v1/lists/test_tl_123",
     }
 
-    mock_task_data = {
+
+def _create_mock_task_data() -> dict[str, str | bool | None]:
+    """Create mock task data dictionary."""
+    return {
         "id": "test_task_123",
         "title": "Test Integration Task",
         "tasklist_id": "test_tl_123",
@@ -194,7 +206,9 @@ def mock_gtask_client() -> tuple[MagicMock, dict[str, str], dict[str, str]]:
         "hidden": False,
     }
 
-    # Create a default tasklist (first in list - cannot be deleted)
+
+def _create_default_tasklist() -> MagicMock:
+    """Create a default tasklist mock (first in list - cannot be deleted)."""
     default_tasklist = MagicMock()
     default_tasklist.id = "default_tl"
     default_tasklist.title = "Default TaskList"
@@ -203,43 +217,87 @@ def mock_gtask_client() -> tuple[MagicMock, dict[str, str], dict[str, str]]:
     default_tasklist.self_link = (
         "https://tasks.googleapis.com/tasks/v1/lists/default_tl"
     )
+    return default_tasklist
 
+
+def _create_mock_tasklist(tasklist_data: dict[str, str]) -> MagicMock:
+    """Create a mock tasklist from tasklist data."""
     mock_tasklist = MagicMock()
-    mock_tasklist.id = mock_tasklist_data["id"]
-    mock_tasklist.title = mock_tasklist_data["title"]
-    mock_tasklist.etag = mock_tasklist_data["etag"]
-    mock_tasklist.updated = mock_tasklist_data["updated"]
-    mock_tasklist.self_link = mock_tasklist_data["self_link"]
+    mock_tasklist.id = tasklist_data["id"]
+    mock_tasklist.title = tasklist_data["title"]
+    mock_tasklist.etag = tasklist_data["etag"]
+    mock_tasklist.updated = tasklist_data["updated"]
+    mock_tasklist.self_link = tasklist_data["self_link"]
+    return mock_tasklist
 
+
+def _create_mock_task(task_data: dict[str, str | bool | None]) -> MagicMock:
+    """Create a mock task from task data."""
     mock_task = MagicMock()
-    mock_task.id = mock_task_data["id"]
-    mock_task.title = mock_task_data["title"]
-    mock_task.notes = mock_task_data["notes"]
-    mock_task.status = mock_task_data["status"]
-    mock_task.due = mock_task_data["due"]
-    mock_task.completed = mock_task_data["completed"]
-    mock_task.deleted = mock_task_data["deleted"]
-    mock_task.hidden = mock_task_data["hidden"]
+    mock_task.id = task_data["id"]
+    mock_task.title = task_data["title"]
+    mock_task.notes = task_data["notes"]
+    mock_task.status = task_data["status"]
+    mock_task.due = task_data["due"]
+    mock_task.completed = task_data["completed"]
+    mock_task.deleted = task_data["deleted"]
+    mock_task.hidden = task_data["hidden"]
+    return mock_task
 
-    # Create a mock that implements the Client interface
-    mock_gtask_client = MagicMock(spec=gtask_client_impl.GTaskClient)
 
-    # Configure the mock to return the tasklist for valid ID
-    # Return default tasklist first, then our test tasklist
-    # The service prevents deleting the first tasklist (default)
+def _create_list_tasklists_side_effect(
+    default_tasklist: MagicMock,
+    mock_tasklist: MagicMock,
+) -> object:
+    """Create side effect for list_tasklists method."""
+
     def list_tasklists_side_effect() -> list[TaskList]:
         return [default_tasklist, mock_tasklist]
 
+    return list_tasklists_side_effect
+
+
+def _create_insert_tasklist_side_effect(mock_tasklist: MagicMock) -> object:
+    """Create side effect for insert_tasklist method."""
+
     def insert_tasklist_side_effect(tasklist: TaskList) -> TaskList:
+        mock_tasklist.title = tasklist.title
         return mock_tasklist
+
+    return insert_tasklist_side_effect
+
+
+def _create_delete_tasklist_side_effect(
+    mock_tasklist_data: dict[str, str],
+) -> object:
+    """Create side effect for delete_tasklist method."""
 
     def delete_tasklist_side_effect(tasklist_id: str) -> bool:
         return tasklist_id == mock_tasklist_data["id"]
+
+    return delete_tasklist_side_effect
+
+
+def _create_list_tasks_side_effect(
+    mock_tasklist_data: dict[str, str],
+    mock_task: MagicMock,
+) -> object:
+    """Create side effect for list_tasks method."""
 
     def list_tasks_side_effect(tasklist_id: str) -> list[Task]:
         if tasklist_id == mock_tasklist_data["id"]:
             return [mock_task]
         return []
+
+    return list_tasks_side_effect
+
+
+def _create_get_task_side_effect(
+    mock_tasklist_data: dict[str, str],
+    mock_task_data: dict[str, str | bool | None],
+    mock_task: MagicMock,
+) -> object:
+    """Create side effect for get_task method."""
 
     def get_task_side_effect(tasklist_id: str, task_id: str) -> Task:
         if task_id == mock_task_data["id"] and tasklist_id == mock_tasklist_data["id"]:
@@ -247,40 +305,102 @@ def mock_gtask_client() -> tuple[MagicMock, dict[str, str], dict[str, str]]:
         msg = f"Task with ID {task_id} not found"
         raise RuntimeError(msg)
 
-    def insert_task_side_effect(tasklist_id: str, task: Task) -> Task:
+    return get_task_side_effect
+
+
+def _create_insert_task_side_effect(
+    mock_tasklist_data: dict[str, str],
+    mock_task: MagicMock,
+) -> object:
+    """Create side effect for insert_task method."""
+
+    def insert_task_side_effect(tasklist_id: str) -> Task:
         if tasklist_id == mock_tasklist_data["id"]:
             return mock_task
         msg = f"Tasklist with ID {tasklist_id} not found"
         raise RuntimeError(msg)
+
+    return insert_task_side_effect
+
+
+def _create_delete_task_side_effect(
+    mock_tasklist_data: dict[str, str],
+    mock_task_data: dict[str, str | bool | None],
+) -> object:
+    """Create side effect for delete_task method."""
 
     def delete_task_side_effect(tasklist_id: str, task_id: str) -> bool:
         return (
             task_id == mock_task_data["id"] and tasklist_id == mock_tasklist_data["id"]
         )
 
-    # Explicitly configure all required methods
-    mock_gtask_client.list_tasklists.side_effect = list_tasklists_side_effect
-    mock_gtask_client.insert_tasklist.side_effect = insert_tasklist_side_effect
-    mock_gtask_client.delete_tasklist.side_effect = delete_tasklist_side_effect
-    mock_gtask_client.list_tasks.side_effect = list_tasks_side_effect
-    mock_gtask_client.get_task.side_effect = get_task_side_effect
-    mock_gtask_client.insert_task.side_effect = insert_task_side_effect
-    mock_gtask_client.delete_task.side_effect = delete_task_side_effect
+    return delete_task_side_effect
 
-    # Ensure all methods exist and are callable
-    assert hasattr(
-        mock_gtask_client, "list_tasklists"
-    ), "Mock missing list_tasklists method"
-    assert hasattr(
-        mock_gtask_client, "insert_tasklist"
-    ), "Mock missing insert_tasklist method"
-    assert hasattr(
-        mock_gtask_client, "delete_tasklist"
-    ), "Mock missing delete_tasklist method"
-    assert hasattr(mock_gtask_client, "list_tasks"), "Mock missing list_tasks method"
-    assert hasattr(mock_gtask_client, "get_task"), "Mock missing get_task method"
-    assert hasattr(mock_gtask_client, "insert_task"), "Mock missing insert_task method"
-    assert hasattr(mock_gtask_client, "delete_task"), "Mock missing delete_task method"
+
+def _configure_mock_client_side_effects(
+    mock_client: MagicMock,
+    context: MockClientContext,
+) -> None:
+    """Configure all side effects on the mock client."""
+    mock_client.list_tasklists.side_effect = _create_list_tasklists_side_effect(
+        context.default_tasklist, context.mock_tasklist
+    )
+    mock_client.insert_tasklist.side_effect = _create_insert_tasklist_side_effect(
+        context.mock_tasklist
+    )
+    mock_client.delete_tasklist.side_effect = _create_delete_tasklist_side_effect(
+        context.mock_tasklist_data
+    )
+    mock_client.list_tasks.side_effect = _create_list_tasks_side_effect(
+        context.mock_tasklist_data, context.mock_task
+    )
+    mock_client.get_task.side_effect = _create_get_task_side_effect(
+        context.mock_tasklist_data, context.mock_task_data, context.mock_task
+    )
+    mock_client.insert_task.side_effect = _create_insert_task_side_effect(
+        context.mock_tasklist_data, context.mock_task
+    )
+    mock_client.delete_task.side_effect = _create_delete_task_side_effect(
+        context.mock_tasklist_data, context.mock_task_data
+    )
+
+
+def _verify_mock_client_methods(mock_client: MagicMock) -> None:
+    """Verify that all required methods exist on the mock client."""
+    required_methods = [
+        "list_tasklists",
+        "insert_tasklist",
+        "delete_tasklist",
+        "list_tasks",
+        "get_task",
+        "insert_task",
+        "delete_task",
+    ]
+    for method in required_methods:
+        assert hasattr(mock_client, method), f"Mock missing {method} method"
+
+
+@pytest.fixture
+def mock_gtask_client() -> tuple[MagicMock, dict[str, str], dict[str, str]]:
+    """Create a mock GTask client with test data."""
+    mock_tasklist_data = _create_mock_tasklist_data()
+    mock_task_data = _create_mock_task_data()
+
+    default_tasklist = _create_default_tasklist()
+    mock_tasklist = _create_mock_tasklist(mock_tasklist_data)
+    mock_task = _create_mock_task(mock_task_data)
+
+    mock_gtask_client = MagicMock(spec=gtask_client_impl.GTaskClient)
+
+    context = MockClientContext(
+        default_tasklist=default_tasklist,
+        mock_tasklist=mock_tasklist,
+        mock_task=mock_task,
+        mock_tasklist_data=mock_tasklist_data,
+        mock_task_data=mock_task_data,
+    )
+    _configure_mock_client_side_effects(mock_gtask_client, context)
+    _verify_mock_client_methods(mock_gtask_client)
 
     return mock_gtask_client, mock_tasklist_data, mock_task_data
 
