@@ -398,55 +398,24 @@ workflows:
       - unit_test:
           requires:
             - build
-          filters:
-            branches:
-              only:
-                - main
-                - develop
-                - kamen-requierd-fixes
-                - make-real-deletions
-                - temp/testing-circle-e2e
-                - hw1-final-submission
+
 
       - circleci_test:
           requires:
             - unit_test
-          filters:
-            branches:
-              only:
-                - main
-                - develop
-                - kamen-requierd-fixes
-                - make-real-deletions
-                - hw1-final-submission
+
 
       - integration_test:
           requires:
             - circleci_test
           context: hw1 # Context containing Gmail and Google Tasks API credentials
-          filters:
-            branches:
-              only:
-                - main
-                - develop
-                - kamen-requierd-fixes
-                - make-real-deletions
-                - temp/testing-circle-e2e
-                - hw1-final-submission
+
 
       - e2e_test:
           requires:
             - integration_test
           context: hw1
-          filters:
-            branches:
-              only:
-                - main
-                - develop
-                - kamen-requierd-fixes
-                - make-real-deletions
-                - temp/testing-circle-e2e
-                - hw1-final-submission
+
 
       - report_summary:
           requires:
@@ -454,12 +423,4 @@ workflows:
             - circleci_test
             - integration_test
             - e2e_test
-          filters:
-            branches:
-              only:
-                - main
-                - develop
-                - kamen-requierd-fixes
-                - make-real-deletions
-                - temp/testing-circle-e2e
-                - hw1-final-submission
+
