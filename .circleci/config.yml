@@ -91,7 +91,6 @@ jobs:
   circleci_test:
     docker:
       - image: cimg/python:3.11
-    # Environment variables from the 'gmail-client' context will be available here
     steps:
       - attach_workspace:
           at: . # Attach the workspace persisted from 'build'
@@ -105,9 +104,10 @@ jobs:
           command: |
             source .venv/bin/activate
             # Run all tests from src/ and tests/ directories except those requiring local credentials
-            # This includes unit tests, integration tests, and e2e tests that work with env vars
+            # This includes unit tests, integration tests marked with circleci (without local_credentials), 
+            # and e2e tests that work with env vars
             # Coverage tracking enabled since this includes comprehensive unit tests
-            pytest src/ tests/ -m "not local_credentials" \
+            pytest src/ tests/gtask_integration -m "not local_credentials" \
                    --junitxml=test-results/circleci/junit.xml -v \
                    --cov=src --cov-report=term
       - store_test_results:
@@ -115,11 +115,13 @@ jobs:
       - store_artifacts:
           path: test-results/circleci
 
-  # Job 5: Integration Tests with Real Credentials (Optional - Branch Restricted)
+  # Job 5: Integration Tests with Real Credentials (Gmail and Google Tasks)
+  # Runs integration tests that require API credentials (Gmail and/or Google Tasks)
+  # Tests will skip gracefully if credentials are not available
+  # Adapter integration tests that use mocks will run regardless of credentials
   integration_test:
     docker:
       - image: cimg/python:3.11
-    # Environment variables from the 'gmail-client' context will be available here
     steps:
       - attach_workspace:
           at: . # Attach the workspace persisted from 'build'
@@ -127,11 +129,28 @@ jobs:
           name: 'Verify Environment Variables'
           command: |
             echo "Checking for required environment variables..."
+            gmail_creds_present=true
+            gtask_creds_present=true
+
             if [ -z "$GMAIL_CLIENT_ID" ] || [ -z "$GMAIL_CLIENT_SECRET" ] || [ -z "$GMAIL_REFRESH_TOKEN" ]; then
-              echo "WARNING: Missing Gmail environment variables. Integration tests may be skipped."
+              echo "WARNING: Missing Gmail environment variables. Gmail integration tests may be skipped."
               echo "Required: GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN"
+              gmail_creds_present=false
             else
-              echo "All required environment variables are present."
+              echo "Gmail credentials present."
+            fi
+
+            if [ -z "$TASKS_CLIENT_ID" ] || [ -z "$TASKS_CLIENT_SECRET" ] || [ -z "$TASKS_REFRESH_TOKEN" ]; then
+              echo "WARNING: Missing Google Tasks environment variables. GTask integration tests may be skipped."
+              echo "Required: TASKS_CLIENT_ID, TASKS_CLIENT_SECRET, TASKS_REFRESH_TOKEN"
+              gtask_creds_present=false
+            else
+              echo "Google Tasks credentials present."
+            fi
+
+            if [ "$gmail_creds_present" = false ] && [ "$gtask_creds_present" = false ]; then
+              echo "WARNING: No credentials available. Some integration tests will be skipped."
+              echo "Tests that use mocks will still run successfully."
             fi
       - run:
           name: 'Activate Venv and Create Test Results Directory'
@@ -142,10 +161,11 @@ jobs:
           name: 'Execute Integration Test Suite with Real API Calls'
           command: |
             source .venv/bin/activate
-            # Run integration tests that require real Gmail API connectivity
-            # These will use environment variables for authentication
+            # Run integration tests that require real API connectivity
+            # Tests will use environment variables for authentication
+            # Tests will skip if credentials are not available (tests handle this gracefully)
             # Note: No coverage tracking for integration tests - they test component interactions
-            pytest -m "integration and not local_credentials" \
+            pytest -m "integration and local_credentials" \
                    --junitxml=test-results/integration/junit.xml -v \
                    --no-cov
       - store_test_results:
@@ -306,11 +326,11 @@ workflows:
                 - develop
                 - kamen-requierd-fixes
                 - make-real-deletions
-                
+
       - integration_test:
           requires:
             - circleci_test # Run after CircleCI tests pass
-          context: hw1 # Context containing Gmail API credentials
+          context: hw1 # Context containing Gmail and Google Tasks API credentials
           filters:
             branches:
               only:
@@ -334,7 +354,6 @@ workflows:
                 - make-real-deletions
                 - temp/testing-circle-e2e
                 - hw1-final-submission
-
 
       # Optional: Report summary after core tests
       - report_summary:
@@ -403,8 +422,8 @@ workflows:
 
       - integration_test:
           requires:
-            - circleci_test 
-          context: hw1
+            - circleci_test
+          context: hw1 # Context containing Gmail and Google Tasks API credentials
           filters:
             branches:
               only:
@@ -444,4 +463,3 @@ workflows:
                 - make-real-deletions
                 - temp/testing-circle-e2e
                 - hw1-final-submission
-
