@@ -1,4 +1,4 @@
-# task_client_service_client
+# task-client-service-client
 A client library for accessing Task Client Service
 
 ## Usage
