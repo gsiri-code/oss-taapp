@@ -50,9 +50,7 @@ def _setup_mock_client_injection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Set up mock client injection for tests."""
-    monkeypatch.setattr(
-        task_client_api, "get_client", lambda: mock_client, raising=True
-    )
+    monkeypatch.setattr(task_client_api, "get_client", lambda: mock_client, raising=True)
     service_app.dependency_overrides[get_task_client] = lambda: mock_client  # type: ignore[assignment]
 
 
@@ -63,9 +61,7 @@ def _test_tasklist_operations(
     """Test tasklist operations via adapter."""
     got_tasklists = adapter.list_tasklists()
     assert len(got_tasklists) >= 1
-    test_tasklist = next(
-        (tl for tl in got_tasklists if tl.id == dummy_tasklist.id), None
-    )
+    test_tasklist = next((tl for tl in got_tasklists if tl.id == dummy_tasklist.id), None)
     assert test_tasklist is not None
     assert test_tasklist.id == dummy_tasklist.id
     assert test_tasklist.title == dummy_tasklist.title
@@ -119,9 +115,7 @@ def _verify_mock_client_calls(
     mock_client.insert_tasklist.assert_called_once()
     call_args = mock_client.insert_tasklist.call_args
     assert call_args is not None
-    assert (
-        len(call_args[0]) == 1
-    ), "insert_tasklist should be called with one TaskList argument"
+    assert len(call_args[0]) == 1, "insert_tasklist should be called with one TaskList argument"
     inserted_tasklist = call_args[0][0]
     assert inserted_tasklist.title == dummy_tasklist.title
 
@@ -131,9 +125,7 @@ def _verify_mock_client_calls(
     mock_client.insert_task.assert_called_once()
     insert_task_call_args = mock_client.insert_task.call_args
     assert insert_task_call_args is not None
-    assert (
-        insert_task_call_args[0][0] == dummy_tasklist.id
-    ), "First arg should be tasklist_id"
+    assert insert_task_call_args[0][0] == dummy_tasklist.id, "First arg should be tasklist_id"
     inserted_task = insert_task_call_args[0][1]
     assert inserted_task.title == dummy_task.title
 
@@ -173,9 +165,7 @@ def _create_default_mock_tasklist() -> MagicMock:
     default_tasklist.title = "Default TaskList"
     default_tasklist.etag = "etag-default"
     default_tasklist.updated = "2025-01-01T00:00:00Z"
-    default_tasklist.self_link = (
-        "https://tasks.googleapis.com/tasks/v1/lists/default_tl"
-    )
+    default_tasklist.self_link = "https://tasks.googleapis.com/tasks/v1/lists/default_tl"
     return default_tasklist
 
 
@@ -259,13 +249,9 @@ def _verify_mock_gtask_client_calls(
     mock_gtask_client.insert_tasklist.assert_called()
     mock_gtask_client.delete_tasklist.assert_called_with(mock_tasklist_data["id"])
     mock_gtask_client.list_tasks.assert_called_with(mock_tasklist_data["id"])
-    mock_gtask_client.get_task.assert_called_with(
-        mock_tasklist_data["id"], mock_task_data["id"]
-    )
+    mock_gtask_client.get_task.assert_called_with(mock_tasklist_data["id"], mock_task_data["id"])
     mock_gtask_client.insert_task.assert_called()
-    mock_gtask_client.delete_task.assert_called_with(
-        mock_tasklist_data["id"], mock_task_data["id"]
-    )
+    mock_gtask_client.delete_task.assert_called_with(mock_tasklist_data["id"], mock_task_data["id"])
 
 
 @pytest.mark.integration
@@ -285,9 +271,7 @@ def test_adapter_exercises_service_and_task_client(
         "This is an integration test task body.",
     )
 
-    _configure_mock_client_for_adapter_tests(
-        mock_client, default_tasklist, dummy_tasklist, dummy_task
-    )
+    _configure_mock_client_for_adapter_tests(mock_client, default_tasklist, dummy_tasklist, dummy_task)
     _setup_mock_client_injection(mock_client, monkeypatch)
 
     try:
@@ -344,13 +328,9 @@ def test_end_to_end_service_call_with_mocked_gtask_impl_and_fastapi(
     mock_task = _create_mock_task_from_data(mock_task_data)
 
     mock_gtask_client = MagicMock(spec=gtask_client_impl.GTaskClient)
-    _configure_mock_gtask_client(
-        mock_gtask_client, default_tasklist, mock_tasklist, mock_task
-    )
+    _configure_mock_gtask_client(mock_gtask_client, default_tasklist, mock_tasklist, mock_task)
 
-    monkeypatch.setattr(
-        task_client_api, "get_client", lambda: mock_gtask_client, raising=True
-    )
+    monkeypatch.setattr(task_client_api, "get_client", lambda: mock_gtask_client, raising=True)
     service_app.dependency_overrides[get_task_client] = lambda: mock_gtask_client  # type: ignore[assignment]
 
     try:
@@ -360,18 +340,10 @@ def test_end_to_end_service_call_with_mocked_gtask_impl_and_fastapi(
             service_client.set_httpx_client(httpx_client)
             adapter = ServiceClientAdapter(service_client)
 
-            _test_tasklist_operations_with_mock_data(
-                adapter, mock_tasklist, mock_tasklist_data
-            )
-            _test_task_operations_with_mock_data(
-                adapter, mock_task, mock_tasklist_data, mock_task_data
-            )
-            _test_delete_operations_with_mock_data(
-                adapter, mock_tasklist_data, mock_task_data
-            )
-            _verify_mock_gtask_client_calls(
-                mock_gtask_client, mock_tasklist_data, mock_task_data
-            )
+            _test_tasklist_operations_with_mock_data(adapter, mock_tasklist, mock_tasklist_data)
+            _test_task_operations_with_mock_data(adapter, mock_task, mock_tasklist_data, mock_task_data)
+            _test_delete_operations_with_mock_data(adapter, mock_tasklist_data, mock_task_data)
+            _verify_mock_gtask_client_calls(mock_gtask_client, mock_tasklist_data, mock_task_data)
     finally:
         service_app.dependency_overrides.pop(get_task_client, None)
 
@@ -392,70 +364,38 @@ def test_adapter_with_running_service_and_mock_gtask_client(
     tasklists = adapter.list_tasklists()
     assert len(tasklists) >= 1
     test_tasklist = next(
-        (
-            tl
-            for tl in tasklists
-            if tl.id == running_service_with_mock_client.mock_tasklist_data["id"]
-        ),
+        (tl for tl in tasklists if tl.id == running_service_with_mock_client.mock_tasklist_data["id"]),
         None,
     )
     assert test_tasklist is not None
     assert test_tasklist.id == running_service_with_mock_client.mock_tasklist_data["id"]
-    assert (
-        test_tasklist.title
-        == running_service_with_mock_client.mock_tasklist_data["title"]
-    )
-    assert (
-        test_tasklist.etag
-        == running_service_with_mock_client.mock_tasklist_data["etag"]
-    )
-    assert (
-        test_tasklist.updated
-        == running_service_with_mock_client.mock_tasklist_data["updated"]
-    )
-    assert (
-        test_tasklist.self_link
-        == running_service_with_mock_client.mock_tasklist_data["self_link"]
-    )
+    assert test_tasklist.title == running_service_with_mock_client.mock_tasklist_data["title"]
+    assert test_tasklist.etag == running_service_with_mock_client.mock_tasklist_data["etag"]
+    assert test_tasklist.updated == running_service_with_mock_client.mock_tasklist_data["updated"]
+    assert test_tasklist.self_link == running_service_with_mock_client.mock_tasklist_data["self_link"]
 
     running_service_with_mock_client.mock_client.list_tasklists.assert_called_once()
 
     mock_tasklist_obj = MagicMock()
     mock_tasklist_obj.id = running_service_with_mock_client.mock_tasklist_data["id"]
-    mock_tasklist_obj.title = running_service_with_mock_client.mock_tasklist_data[
-        "title"
-    ]
+    mock_tasklist_obj.title = running_service_with_mock_client.mock_tasklist_data["title"]
     mock_tasklist_obj.etag = running_service_with_mock_client.mock_tasklist_data["etag"]
-    mock_tasklist_obj.updated = running_service_with_mock_client.mock_tasklist_data[
-        "updated"
-    ]
-    mock_tasklist_obj.self_link = running_service_with_mock_client.mock_tasklist_data[
-        "self_link"
-    ]
+    mock_tasklist_obj.updated = running_service_with_mock_client.mock_tasklist_data["updated"]
+    mock_tasklist_obj.self_link = running_service_with_mock_client.mock_tasklist_data["self_link"]
 
     inserted_tasklist = adapter.insert_tasklist(mock_tasklist_obj)
-    assert (
-        inserted_tasklist.id
-        == running_service_with_mock_client.mock_tasklist_data["id"]
-    )
-    assert (
-        inserted_tasklist.title
-        == running_service_with_mock_client.mock_tasklist_data["title"]
-    )
+    assert inserted_tasklist.id == running_service_with_mock_client.mock_tasklist_data["id"]
+    assert inserted_tasklist.title == running_service_with_mock_client.mock_tasklist_data["title"]
 
     running_service_with_mock_client.mock_client.insert_tasklist.assert_called()
 
-    tasks = adapter.list_tasks(
-        running_service_with_mock_client.mock_tasklist_data["id"]
-    )
+    tasks = adapter.list_tasks(running_service_with_mock_client.mock_tasklist_data["id"])
     assert len(tasks) == 1
     first_task = tasks[0]
     assert first_task.id == running_service_with_mock_client.mock_task_data["id"]
     assert first_task.title == running_service_with_mock_client.mock_task_data["title"]
     assert first_task.notes == running_service_with_mock_client.mock_task_data["notes"]
-    assert (
-        first_task.status == running_service_with_mock_client.mock_task_data["status"]
-    )
+    assert first_task.status == running_service_with_mock_client.mock_task_data["status"]
 
     running_service_with_mock_client.mock_client.list_tasks.assert_called_once_with(
         running_service_with_mock_client.mock_tasklist_data["id"]
@@ -466,25 +406,16 @@ def test_adapter_with_running_service_and_mock_gtask_client(
         running_service_with_mock_client.mock_task_data["id"],
     )
     assert retrieved_task.id == running_service_with_mock_client.mock_task_data["id"]
-    assert (
-        retrieved_task.title == running_service_with_mock_client.mock_task_data["title"]
-    )
-    assert (
-        retrieved_task.notes == running_service_with_mock_client.mock_task_data["notes"]
-    )
-    assert (
-        retrieved_task.status
-        == running_service_with_mock_client.mock_task_data["status"]
-    )
+    assert retrieved_task.title == running_service_with_mock_client.mock_task_data["title"]
+    assert retrieved_task.notes == running_service_with_mock_client.mock_task_data["notes"]
+    assert retrieved_task.status == running_service_with_mock_client.mock_task_data["status"]
 
     running_service_with_mock_client.mock_client.get_task.assert_called_once_with(
         running_service_with_mock_client.mock_tasklist_data["id"],
         running_service_with_mock_client.mock_task_data["id"],
     )
 
-    delete_success = adapter.delete_tasklist(
-        running_service_with_mock_client.mock_tasklist_data["id"]
-    )
+    delete_success = adapter.delete_tasklist(running_service_with_mock_client.mock_tasklist_data["id"])
     assert delete_success is True
 
     running_service_with_mock_client.mock_client.delete_tasklist.assert_called_once_with(
@@ -532,6 +463,4 @@ def test_verify_mock_gtask_client_isolation(
         adapter.get_task("test_tl_123", "invalid-task-id")
 
     running_service_with_mock_client.mock_client.list_tasklists.assert_called_once()
-    running_service_with_mock_client.mock_client.get_task.assert_called_once_with(
-        "test_tl_123", "invalid-task-id"
-    )
+    running_service_with_mock_client.mock_client.get_task.assert_called_once_with("test_tl_123", "invalid-task-id")

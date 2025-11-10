@@ -71,17 +71,20 @@ def service_base_url(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Generator[str, None, None]:
     """Start the real FastAPI service in a separate process (uvicorn) so we hit it over HTTP."""
+    # Calculate workspace root (tests/e2e/test_mail_service_e2e.py -> tests/e2e -> tests -> workspace root)
+    workspace_root = Path(__file__).resolve().parents[2]
+
     port = _free_port()
     base_url = f"http://127.0.0.1:{port}"
 
     env = os.environ.copy()
 
-    # Ensure the child process can import your `src/` tree
+    # Ensure the child process can import your `src/` tree using absolute paths
     src_paths = [
-        str(Path("src/mail_client_api/src").resolve()),
-        str(Path("src/mail_client_adapter/src").resolve()),
-        str(Path("src/gmail_client_impl/src").resolve()),
-        str(Path("src/mail_client_service/src").resolve()),
+        str(workspace_root / "src/mail_client_api/src"),
+        str(workspace_root / "src/mail_client_adapter/src"),
+        str(workspace_root / "src/gmail_client_impl/src"),
+        str(workspace_root / "src/mail_client_service/src"),
     ]
     env["PYTHONPATH"] = os.pathsep.join([*src_paths, env.get("PYTHONPATH", "")])
 
@@ -89,7 +92,7 @@ def service_base_url(
     env["MAIL_CLIENT_INTERACTIVE"] = "false"
 
     # Example if you need a token path:
-    # env["GMAIL_TOKEN_FILE"] = os.path.abspath("token.json")
+    # env["GMAIL_TOKEN_FILE"] = str(workspace_root / "token.json")
 
     # === The key fix: target the module filename and point uvicorn at the directory ===
     cmd = [
@@ -100,7 +103,7 @@ def service_base_url(
         "uvicorn",
         "mail_client_service.fast_api_service:app",  # module:var (src/mail_client_service/src/mail_client_service/fast_api_service.py defines app = FastAPI(...))
         "--app-dir",
-        "src/mail_client_service/src",  # directory that contains mail_client_service package
+        str(workspace_root / "src/mail_client_service/src"),  # directory that contains mail_client_service package
         "--host",
         "127.0.0.1",
         "--port",
@@ -114,13 +117,15 @@ def service_base_url(
         stderr=subprocess.STDOUT,
         text=True,
         shell=False,
+        cwd=str(workspace_root),  # Run from workspace root
     )
 
     try:
         _wait_for_ready(base_url, timeout_s=45)
     except Exception:
         if proc.stdout:
-            pass
+            output = proc.stdout.read()
+            print(f"Service startup failed. Output:\n{output}")  # noqa: T201
         proc.kill()
         raise
 
