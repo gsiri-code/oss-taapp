@@ -20,8 +20,42 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 SCOPES = ["https://www.googleapis.com/auth/tasks"]
 CREDENTIALS_PATH = "credentials.json"
+
+
+def get_base_url() -> str:
+    """Get the base URL for the service.
+
+    Detects the deployment environment and returns the appropriate base URL:
+    - On Render: Uses RENDER_EXTERNAL_URL environment variable
+    - Otherwise: Uses OAUTH_REDIRECT_URI or falls back to localhost
+    """
+    # Check if explicitly set via environment variable
+    if os.environ.get("OAUTH_REDIRECT_URI"):
+        redirect_uri = os.environ.get("OAUTH_REDIRECT_URI", "")
+        # Extract base URL from redirect URI (remove /auth/callback if present)
+        if redirect_uri.endswith("/auth/callback"):
+            return redirect_uri[:-14]  # Remove "/auth/callback"
+        return redirect_uri
+
+    # Check if running on Render
+    render_external_url = os.environ.get("RENDER_EXTERNAL_URL")
+    if render_external_url:
+        # RENDER_EXTERNAL_URL is the full public URL (e.g., https://your-service.onrender.com)
+        return render_external_url.rstrip("/")
+
+    # Default to localhost for local development
+    return "http://127.0.0.1:8001"
+
+
+def get_redirect_uri() -> str:
+    """Get the OAuth redirect URI for the current environment."""
+    base_url = get_base_url()
+    return f"{base_url}/auth/callback"
+
+
 # Default to port 8001 to match the service port
-REDIRECT_URI = os.environ.get("OAUTH_REDIRECT_URI", "http://127.0.0.1:8001/auth/callback")
+REDIRECT_URI = get_redirect_uri()
+logger.info("OAuth redirect URI configured: %s", REDIRECT_URI)
 
 
 def get_credentials_path() -> Path:
@@ -156,6 +190,7 @@ async def login(request: Request) -> RedirectResponse:
         )
 
     try:
+        logger.info("Initiating OAuth flow with redirect URI: %s", REDIRECT_URI)
         flow: Flow = Flow.from_client_secrets_file(
             str(creds_path),
             scopes=SCOPES,
@@ -170,6 +205,7 @@ async def login(request: Request) -> RedirectResponse:
         authorization_url = str(authorization_url)
         state = str(state)
 
+        logger.info("Redirecting to Google authorization URL")
         request.session["oauth_state"] = state
 
     except FileNotFoundError as e:
