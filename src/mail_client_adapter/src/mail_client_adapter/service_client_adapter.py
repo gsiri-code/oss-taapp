@@ -158,18 +158,18 @@ class ServiceClientAdapter(mail_client_api.Client):
             self.logger.debug("Error details: %s", e)
             return False
 
-    def get_messages(self, max_results: int = 10) -> Iterator[message.Message]:
+    def get_messages(self, max_results: int | None = 10) -> Iterator[message.Message]:
         """Return an iterator of messages from the inbox.
 
         Args:
-            max_results: Maximum number of messages to return
+            max_results: Maximum number of messages to return. If None, returns all messages.
 
         Yields:
             Message: Messages from the inbox
 
         """
         try:
-            self.logger.info("Fetching messages with max_results=%d", max_results)
+            self.logger.info("Fetching messages with max_results=%s", max_results)
             response = list_messages_sync(client=self._service_client)
 
             if response is None:
@@ -185,7 +185,11 @@ class ServiceClientAdapter(mail_client_api.Client):
                 return
 
             # Limit results if max_results is specified and positive
-            messages_to_process = response[:max_results] if max_results is not None and max_results > 0 else response
+            # If max_results is None or <= 0, return all messages
+            if max_results is not None and max_results > 0:
+                messages_to_process = response[:max_results]
+            else:
+                messages_to_process = response
 
             self.logger.info("Processing %d messages", len(messages_to_process))
             for i, message_item in enumerate(messages_to_process):
