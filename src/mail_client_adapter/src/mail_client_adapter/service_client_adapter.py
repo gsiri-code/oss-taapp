@@ -186,10 +186,11 @@ class ServiceClientAdapter(mail_client_api.Client):
 
             # Limit results if max_results is specified and positive
             # If max_results is None or <= 0, return all messages
-            if max_results is not None and max_results > 0:
-                messages_to_process = response[:max_results]
-            else:
-                messages_to_process = response
+            messages_to_process = (
+                response[:max_results]
+                if max_results is not None and max_results > 0
+                else response
+            )
 
             self.logger.info("Processing %d messages", len(messages_to_process))
             for i, message_item in enumerate(messages_to_process):
