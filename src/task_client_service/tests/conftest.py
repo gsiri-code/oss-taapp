@@ -1,9 +1,9 @@
 """Test configuration for task client service (Google Tasks)."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from enum import Enum
 from typing import cast
-from unittest.mock import Mock, create_autospec
+from unittest.mock import Mock, create_autospec, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -108,6 +108,15 @@ def service_client(mock_task_client: Mock) -> TestClient:
     """Provide a test client with mocked dependencies."""
     app.dependency_overrides[get_task_client] = lambda: mock_task_client
     return TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def mock_webbrowser() -> Generator[None, None, None]:
+    """Mock webbrowser.open to prevent opening browser during tests."""
+    # Note: webbrowser is no longer used in fast_api_service, but we keep this
+    # fixture for compatibility and to prevent any webbrowser usage elsewhere
+    with patch("webbrowser.open"):
+        yield
 
 
 @pytest.fixture(autouse=True)

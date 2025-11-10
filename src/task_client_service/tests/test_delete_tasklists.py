@@ -15,7 +15,7 @@ HTTP_500_INTERNAL_SERVER_ERROR = 500
 
 
 class _FakeTasklist:
-    """Simple tasklist stub used for router tests."""
+    """Simple tasklist used for router tests."""
 
     def __init__(self, tasklist_id: str, title: str = "dummy") -> None:
         self.id = tasklist_id
