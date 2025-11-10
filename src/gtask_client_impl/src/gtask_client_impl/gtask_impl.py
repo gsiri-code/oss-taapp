@@ -11,6 +11,7 @@ The implementation supports multiple authentication modes:
 
 import json
 import logging
+from typing import ClassVar
 
 import task_client_api
 from google.oauth2.credentials import Credentials
@@ -47,6 +48,8 @@ class GTaskClient(task_client_api.Client):
 
     """
 
+    TOKEN_PATH: ClassVar[str] = "token.json"  # noqa: S105
+    CREDENTIALS_PATH: ClassVar[str] = "credentials.json"
     FAILURE_TO_CRED = "Failed to obtain credentials. Please check your setup."
 
     def __init__(self, service: Resource | None = None, *, interactive: bool = False) -> None:

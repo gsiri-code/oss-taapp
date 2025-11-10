@@ -157,6 +157,11 @@ class OAuthManager:
         else:
             return request is not None
 
+    def _allow_env_credentials_in_service(self) -> bool:
+        """Return True when env-based credentials are allowed inside the service context."""
+        flag = os.environ.get("TASKS_ALLOW_ENV_IN_SERVICE")
+        return bool(flag and flag.strip().lower() in {"1", "true", "yes", "on"})
+
     def _get_non_interactive_credentials(self) -> Credentials | None:
         """Get credentials in non-interactive mode.
 
@@ -175,6 +180,10 @@ class OAuthManager:
         in_fastapi_context = self._is_in_fastapi_context()
         self.logger.info(
             "_get_non_interactive_credentials: Running in FastAPI context: %s", in_fastapi_context
+        )
+        allow_env_override = self._allow_env_credentials_in_service()
+        self.logger.info(
+            "_get_non_interactive_credentials: Env override enabled: %s", allow_env_override
         )
 
         # First, try to get session credentials (preferred for web requests)
@@ -206,12 +215,17 @@ class OAuthManager:
 
         # If we're in FastAPI context, don't fall back to env credentials
         # (multi-user web service should only use session-based auth)
-        if in_fastapi_context:
+        if in_fastapi_context and not allow_env_override:
             self.logger.info(
                 "_get_non_interactive_credentials: In FastAPI context, not falling back to env. "
                 "User must authenticate via /auth/login"
             )
             return None
+        if in_fastapi_context and allow_env_override:
+            self.logger.info(
+                "_get_non_interactive_credentials: In FastAPI context but override flag set, "
+                "allowing env fallback"
+            )
 
         # Fall back to environment variables (only for non-FastAPI contexts)
         self.logger.info(
@@ -236,11 +250,16 @@ class OAuthManager:
         # If in FastAPI context, don't use env credentials (multi-user web service)
         # Only use session-based auth via the service
         in_fastapi_context = self._is_in_fastapi_context()
-        if not in_fastapi_context:
+        allow_env_override = self._allow_env_credentials_in_service()
+        if not in_fastapi_context or allow_env_override:
             # For non-FastAPI contexts (CLI/standalone), try env first
             creds = self._auth_from_env(interactive=True)
             if creds:
                 return creds
+            if in_fastapi_context and allow_env_override:
+                self.logger.info(
+                    "_get_interactive_credentials: Override enabled but env credentials unavailable"
+                )
 
         client_id = os.environ.get("TASKS_CLIENT_ID")
         client_secret = os.environ.get("TASKS_CLIENT_SECRET")
@@ -1248,9 +1267,16 @@ class OAuthManager:
         if service is None:
             # Try to get credentials again (might have been authenticated since initialization)
             creds = self._get_session_credentials()
-            # Only fall back to env if NOT in FastAPI context (multi-user web service)
-            if not creds and not self._is_in_fastapi_context():
+            allow_env_override = self._allow_env_credentials_in_service()
+            in_fastapi_context = self._is_in_fastapi_context()
+            # Only fall back to env if NOT in FastAPI context (multi-user web service),
+            # unless override flag explicitly allows it.
+            if not creds and (not in_fastapi_context or allow_env_override):
                 creds = self._auth_from_env(interactive=False)
+                if in_fastapi_context and allow_env_override and creds is None:
+                    self.logger.info(
+                        "ensure_service_initialized: Override enabled but env credentials missing"
+                    )
             if not creds:
                 creds = self._initiate_api_login_flow()
 
