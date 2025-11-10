@@ -234,6 +234,7 @@ class TestNonInteractiveCredentials:
         manager = OAuthManager()
 
         with (
+            patch.dict(os.environ, {"TASKS_ALLOW_ENV_IN_SERVICE": ""}, clear=False),
             patch.object(manager, "_is_in_fastapi_context") as mock_is_fastapi,
             patch.object(manager, "_auth_from_env") as mock_auth_env,
             patch.object(manager, "_get_session_credentials") as mock_session,
@@ -394,6 +395,7 @@ class TestInteractiveCredentials:
                     "TASKS_CLIENT_ID": "test_client_id",
                     "TASKS_CLIENT_SECRET": "test_client_secret",
                     "TASKS_REFRESH_TOKEN": "test_refresh_token",
+                    "TASKS_ALLOW_ENV_IN_SERVICE": "",  # Clear the flag to disable env fallback
                 },
             ),
             patch.object(manager, "_is_in_fastapi_context") as mock_is_fastapi,

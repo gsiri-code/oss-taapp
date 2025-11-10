@@ -1,1 +1,1 @@
-"""E2E tests for the mail client."""
+"""End-to-end tests for the application."""

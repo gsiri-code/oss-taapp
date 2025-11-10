@@ -204,14 +204,22 @@ class OAuthManager:
                 "_get_non_interactive_credentials: Exception getting session credentials: %s", e
             )
 
-        # If we're in FastAPI context, don't fall back to env credentials
-        # (multi-user web service should only use session-based auth)
+        # If we're in FastAPI context, check if env fallback is allowed
+        # (multi-user web service should only use session-based auth unless explicitly allowed)
         if in_fastapi_context:
+            allow_env = os.environ.get("TASKS_ALLOW_ENV_IN_SERVICE", "").lower() == "true"
+            if not allow_env:
+                self.logger.info(
+                    """_get_non_interactive_credentials:
+                    In FastAPI context, not falling back to env. """
+                    "User must authenticate via /auth/login"
+                )
+                return None
             self.logger.info(
-                "_get_non_interactive_credentials: In FastAPI context, not falling back to env. "
-                "User must authenticate via /auth/login"
+                """_get_non_interactive_credentials:
+                In FastAPI context but TASKS_ALLOW_ENV_IN_SERVICE=true, """
+                "allowing env fallback"
             )
-            return None
 
         # Fall back to environment variables (only for non-FastAPI contexts)
         self.logger.info(
@@ -233,14 +241,26 @@ class OAuthManager:
 
     def _get_interactive_credentials(self) -> Credentials | None:
         """Get credentials in interactive mode."""
-        # If in FastAPI context, don't use env credentials (multi-user web service)
-        # Only use session-based auth via the service
+        # If in FastAPI context, check if env fallback is allowed
+        # (multi-user web service should only use session-based auth unless explicitly allowed)
         in_fastapi_context = self._is_in_fastapi_context()
         if not in_fastapi_context:
             # For non-FastAPI contexts (CLI/standalone), try env first
             creds = self._auth_from_env(interactive=True)
             if creds:
                 return creds
+        elif in_fastapi_context:
+            # In FastAPI context, check if env fallback is allowed
+            allow_env = os.environ.get("TASKS_ALLOW_ENV_IN_SERVICE", "").lower() == "true"
+            if allow_env:
+                self.logger.info(
+                    """_get_interactive_credentials:
+                    In FastAPI context but TASKS_ALLOW_ENV_IN_SERVICE=true, """
+                    "allowing env fallback"
+                )
+                creds = self._auth_from_env(interactive=True)
+                if creds:
+                    return creds
 
         client_id = os.environ.get("TASKS_CLIENT_ID")
         client_secret = os.environ.get("TASKS_CLIENT_SECRET")

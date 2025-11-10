@@ -214,9 +214,7 @@ def _create_default_tasklist() -> MagicMock:
     default_tasklist.title = "Default TaskList"
     default_tasklist.etag = "etag-default"
     default_tasklist.updated = "2025-01-01T00:00:00Z"
-    default_tasklist.self_link = (
-        "https://tasks.googleapis.com/tasks/v1/lists/default_tl"
-    )
+    default_tasklist.self_link = "https://tasks.googleapis.com/tasks/v1/lists/default_tl"
     return default_tasklist
 
 
@@ -330,9 +328,7 @@ def _create_delete_task_side_effect(
     """Create side effect for delete_task method."""
 
     def delete_task_side_effect(tasklist_id: str, task_id: str) -> bool:
-        return (
-            task_id == mock_task_data["id"] and tasklist_id == mock_tasklist_data["id"]
-        )
+        return task_id == mock_task_data["id"] and tasklist_id == mock_tasklist_data["id"]
 
     return delete_task_side_effect
 
@@ -342,27 +338,15 @@ def _configure_mock_client_side_effects(
     context: MockClientContext,
 ) -> None:
     """Configure all side effects on the mock client."""
-    mock_client.list_tasklists.side_effect = _create_list_tasklists_side_effect(
-        context.default_tasklist, context.mock_tasklist
-    )
-    mock_client.insert_tasklist.side_effect = _create_insert_tasklist_side_effect(
-        context.mock_tasklist
-    )
-    mock_client.delete_tasklist.side_effect = _create_delete_tasklist_side_effect(
-        context.mock_tasklist_data
-    )
-    mock_client.list_tasks.side_effect = _create_list_tasks_side_effect(
-        context.mock_tasklist_data, context.mock_task
-    )
+    mock_client.list_tasklists.side_effect = _create_list_tasklists_side_effect(context.default_tasklist, context.mock_tasklist)
+    mock_client.insert_tasklist.side_effect = _create_insert_tasklist_side_effect(context.mock_tasklist)
+    mock_client.delete_tasklist.side_effect = _create_delete_tasklist_side_effect(context.mock_tasklist_data)
+    mock_client.list_tasks.side_effect = _create_list_tasks_side_effect(context.mock_tasklist_data, context.mock_task)
     mock_client.get_task.side_effect = _create_get_task_side_effect(
         context.mock_tasklist_data, context.mock_task_data, context.mock_task
     )
-    mock_client.insert_task.side_effect = _create_insert_task_side_effect(
-        context.mock_tasklist_data, context.mock_task
-    )
-    mock_client.delete_task.side_effect = _create_delete_task_side_effect(
-        context.mock_tasklist_data, context.mock_task_data
-    )
+    mock_client.insert_task.side_effect = _create_insert_task_side_effect(context.mock_tasklist_data, context.mock_task)
+    mock_client.delete_task.side_effect = _create_delete_task_side_effect(context.mock_tasklist_data, context.mock_task_data)
 
 
 def _verify_mock_client_methods(mock_client: MagicMock) -> None:
