@@ -102,6 +102,12 @@ def _exchange_code_for_tokens(request: Request) -> dict[str, str]:
         return session_data
 
 
+@router.get("/health-check")
+async def get_health_check() -> JSONResponse:
+    """Return health check."""
+    return JSONResponse(content={"status": "Ok"})
+
+
 @router.get("/callback")
 async def oauth_callback(request: Request) -> Response:
     """Handle OAuth callback from Google."""
