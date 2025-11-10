@@ -1,9 +1,9 @@
 """Test configuration for task client service (Google Tasks)."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from enum import Enum
 from typing import cast
-from unittest.mock import Mock, create_autospec
+from unittest.mock import Mock, create_autospec, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -31,14 +31,12 @@ class HTTPStatus(Enum):
     INTERNAL_SERVER_ERROR = 500
 
 
-def assert_response_matches_mock(
-    data: dict[str, str | bool | None], mock_obj: Mock
-) -> None:
+def assert_response_matches_mock(data: dict[str, str | bool | None], mock_obj: Mock) -> None:
     """Assert that the data matches the mock object."""
     for key, value in data.items():
-        assert value == getattr(
-            mock_obj, key
-        ), f"Mismatch for key '{key}': expected {getattr(mock_obj, key)}, got {value}"
+        assert value == getattr(mock_obj, key), (
+            f"Mismatch for key '{key}': expected {getattr(mock_obj, key)}, got {value}"
+        )
 
 
 @pytest.fixture
@@ -110,6 +108,15 @@ def service_client(mock_task_client: Mock) -> TestClient:
     """Provide a test client with mocked dependencies."""
     app.dependency_overrides[get_task_client] = lambda: mock_task_client
     return TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def mock_webbrowser() -> Generator[None, None, None]:
+    """Mock webbrowser.open to prevent opening browser during tests."""
+    # Note: webbrowser is no longer used in fast_api_service, but we keep this
+    # fixture for compatibility and to prevent any webbrowser usage elsewhere
+    with patch("webbrowser.open"):
+        yield
 
 
 @pytest.fixture(autouse=True)

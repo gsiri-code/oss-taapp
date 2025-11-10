@@ -15,7 +15,7 @@ HTTP_500_INTERNAL_SERVER_ERROR = 500
 
 
 class _FakeTasklist:
-    """Simple tasklist stub used for router tests."""
+    """Simple tasklist used for router tests."""
 
     def __init__(self, tasklist_id: str, title: str = "dummy") -> None:
         self.id = tasklist_id
@@ -35,6 +35,7 @@ class TestDeleteTasklist:
 
     def test_delete_default_tasklist_400(self, service_client: Any) -> None:
         """Deleting the first (default) tasklist should return 400."""
+
         class FakeClient:
             def list_tasklists(self) -> list[_FakeTasklist]:
                 return [
@@ -53,6 +54,7 @@ class TestDeleteTasklist:
 
     def test_delete_missing_tasklist_404(self, service_client: Any) -> None:
         """Deleting a tasklist that is not present should return 404."""
+
         class FakeClient:
             def list_tasklists(self) -> list[_FakeTasklist]:
                 return [_FakeTasklist("tl_1"), _FakeTasklist("tl_2")]
@@ -68,6 +70,7 @@ class TestDeleteTasklist:
 
     def test_delete_ok_returns_200(self, service_client: Any) -> None:
         """Deleting a non-default, existing tasklist should return 200 with detail."""
+
         class FakeClient:
             def list_tasklists(self) -> list[_FakeTasklist]:
                 return [
@@ -87,6 +90,7 @@ class TestDeleteTasklist:
 
     def test_delete_client_returns_false_500(self, service_client: Any) -> None:
         """If backend delete returns False, router should respond 500."""
+
         class FakeClient:
             def list_tasklists(self) -> list[_FakeTasklist]:
                 return [
@@ -105,6 +109,7 @@ class TestDeleteTasklist:
 
     def test_delete_client_raises_500(self, service_client: Any) -> None:
         """If backend delete raises, router should respond 500."""
+
         class FakeClient:
             def list_tasklists(self) -> list[_FakeTasklist]:
                 return [

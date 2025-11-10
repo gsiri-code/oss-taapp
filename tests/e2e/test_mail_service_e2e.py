@@ -208,9 +208,7 @@ def validate_http_response_structure(response_data: dict[str, Any]) -> bool:
     return True
 
 
-def measure_performance(
-    func: Callable[..., Any], *args: Any, **kwargs: Any
-) -> tuple[Any, float]:
+def measure_performance(func: Callable[..., Any], *args: Any, **kwargs: Any) -> tuple[Any, float]:
     """Measure the performance of a function call."""
     import time
 
@@ -272,9 +270,7 @@ def test_e2e_comprehensive_service_operations(
     # Test 0: Verify service is healthy
     try:
         response = httpx.get(f"{service_base_url}/openapi.json", timeout=5.0)
-        assert (
-            response.status_code == httpx.codes.OK
-        ), f"Service health check failed: {response.status_code}"
+        assert response.status_code == httpx.codes.OK, f"Service health check failed: {response.status_code}"
     except Exception as e:
         pytest.fail(f"Service is not healthy: {e}")
 
@@ -615,34 +611,24 @@ def test_e2e_data_integrity_and_validation(  # noqa: PLR0915, PLR0912, C901
             for field in required_fields:
                 assert hasattr(msg, field), f"Message {i + 1} missing field: {field}"
                 value = getattr(msg, field)
-                assert isinstance(
-                    value, str
-                ), f"Message {i + 1} field {field} is not string: {type(value)}"
+                assert isinstance(value, str), f"Message {i + 1} field {field} is not string: {type(value)}"
                 assert value is not None, f"Message {i + 1} field {field} is None"
 
             # Validate field content patterns
             assert len(msg.id) > 0, f"Message {i + 1} has empty ID"
-            assert (
-                len(msg.subject) >= 0
-            ), f"Message {i + 1} subject validation failed"  # Subject can be empty
+            assert len(msg.subject) >= 0, f"Message {i + 1} subject validation failed"  # Subject can be empty
 
             # Validate email format in from_ field (basic check)
             if msg.from_ and "@" in msg.from_:
                 # Note: Gmail API might return complex formats like "Name <email@domain.com>"
                 # So we just check for basic email structure
-                assert (
-                    "@" in msg.from_
-                ), f"Message {i + 1} from_ field doesn't contain email: {msg.from_}"
+                assert "@" in msg.from_, f"Message {i + 1} from_ field doesn't contain email: {msg.from_}"
 
             # Validate date format (should be a string, could be ISO format or other)
-            assert isinstance(
-                msg.date, str
-            ), f"Message {i + 1} date is not string: {type(msg.date)}"
+            assert isinstance(msg.date, str), f"Message {i + 1} date is not string: {type(msg.date)}"
 
             # Validate body is a string (can be empty)
-            assert isinstance(
-                msg.body, str
-            ), f"Message {i + 1} body is not string: {type(msg.body)}"
+            assert isinstance(msg.body, str), f"Message {i + 1} body is not string: {type(msg.body)}"
 
     except Exception as e:
         pytest.fail(f"Data structure validation failed: {e}")
@@ -658,18 +644,10 @@ def test_e2e_data_integrity_and_validation(  # noqa: PLR0915, PLR0912, C901
 
             # Verify data consistency
             assert retrieved_message.id == first_message.id, "Message ID inconsistency"
-            assert (
-                retrieved_message.subject == first_message.subject
-            ), "Message subject inconsistency"
-            assert (
-                retrieved_message.from_ == first_message.from_
-            ), "Message from_ inconsistency"
-            assert (
-                retrieved_message.date == first_message.date
-            ), "Message date inconsistency"
-            assert (
-                retrieved_message.body == first_message.body
-            ), "Message body inconsistency"
+            assert retrieved_message.subject == first_message.subject, "Message subject inconsistency"
+            assert retrieved_message.from_ == first_message.from_, "Message from_ inconsistency"
+            assert retrieved_message.date == first_message.date, "Message date inconsistency"
+            assert retrieved_message.body == first_message.body, "Message body inconsistency"
 
         except Exception as e:
             pytest.fail(f"Data consistency check failed: {e}")
@@ -680,9 +658,7 @@ def test_e2e_data_integrity_and_validation(  # noqa: PLR0915, PLR0912, C901
     try:
         # Test GET /messages endpoint structure
         response = httpx.get(f"{service_base_url}/messages", timeout=10.0)
-        assert (
-            response.status_code == httpx.codes.OK
-        ), f"GET /messages failed: {response.status_code}"
+        assert response.status_code == httpx.codes.OK, f"GET /messages failed: {response.status_code}"
 
         messages_data = response.json()
         assert isinstance(messages_data, list), "GET /messages should return a list"
@@ -694,9 +670,7 @@ def test_e2e_data_integrity_and_validation(  # noqa: PLR0915, PLR0912, C901
             required_keys = ["id", "from", "to", "subject", "date", "body"]
             for key in required_keys:
                 assert key in msg_data, f"Message {i} missing key: {key}"
-                assert isinstance(
-                    msg_data[key], str
-                ), f"Message {i} key {key} is not string"
+                assert isinstance(msg_data[key], str), f"Message {i} key {key} is not string"
 
     except Exception as e:
         pytest.fail(f"Response structure validation failed: {e}")
@@ -1022,9 +996,7 @@ def test_e2e_get_messages_with_different_limits(
     - Response consistency
     - Performance with different limits
     """
-    messages, _execution_time = measure_performance(
-        lambda: list(mail_adapter_client.get_messages(max_results=max_results))
-    )
+    messages, _execution_time = measure_performance(lambda: list(mail_adapter_client.get_messages(max_results=max_results)))
 
     assert isinstance(messages, list)
     assert len(messages) <= max_results
@@ -1047,9 +1019,7 @@ def test_e2e_get_messages_with_different_limits(
         "!@#$%^&*()",
     ],
 )
-def test_e2e_get_message_with_invalid_ids(
-    mail_adapter_client: ServiceClientAdapter, invalid_id: str
-) -> None:
+def test_e2e_get_message_with_invalid_ids(mail_adapter_client: ServiceClientAdapter, invalid_id: str) -> None:
     """Parametrized test for get_message with various invalid IDs.
 
     Tests:
@@ -1065,9 +1035,7 @@ def test_e2e_get_message_with_invalid_ids(
     try:
         mail_adapter_client.get_message(invalid_id)
         # If we get here, the invalid ID was not successfully caught
-        pytest.fail(
-            f"Expected exception for invalid ID: {invalid_id!r}, but no exception was raised"
-        )
+        pytest.fail(f"Expected exception for invalid ID: {invalid_id!r}, but no exception was raised")
     except RuntimeError as e:
         # Invalid ID was successfully caught with RuntimeError
         assert (  # noqa: PT017 - Need to assert exception message content to validate error handling
@@ -1114,9 +1082,7 @@ def test_e2e_operations_with_sample_messages(
                 result = mail_adapter_client.delete_message(delete_message.id)
                 assert result is True
             else:
-                pytest.skip(
-                    "Only one message available - skipping delete operation for safety"
-                )
+                pytest.skip("Only one message available - skipping delete operation for safety")
 
     except Exception as e:
         pytest.fail(f"{operation} operation failed: {e}")
@@ -1204,23 +1170,17 @@ def test_e2e_performance_benchmarks(
     - Resource usage patterns
     """
     # Benchmark get_messages
-    messages, _get_time = measure_performance(
-        lambda: list(mail_adapter_client.get_messages(max_results=5))
-    )
+    messages, _get_time = measure_performance(lambda: list(mail_adapter_client.get_messages(max_results=5)))
 
     # Benchmark individual operations if messages exist
     if messages:
         test_message = messages[0]
 
         # Benchmark get_message
-        _, _get_single_time = measure_performance(
-            lambda: mail_adapter_client.get_message(test_message.id)
-        )
+        _, _get_single_time = measure_performance(lambda: mail_adapter_client.get_message(test_message.id))
 
         # Benchmark mark_as_read
-        _, _mark_time = measure_performance(
-            lambda: mail_adapter_client.mark_as_read(test_message.id)
-        )
+        _, _mark_time = measure_performance(lambda: mail_adapter_client.mark_as_read(test_message.id))
 
 
 # @pytest.mark.e2e
@@ -1574,9 +1534,7 @@ def test_e2e_gmail_message_parsing_edge_cases(  # noqa: C901 - E2E test intentio
         # Request larger messages to test size handling
         messages = list(adapter.get_messages(max_results=20))
 
-        large_messages = [
-            msg for msg in messages if len(msg.body) > LARGE_MESSAGE_BODY_THRESHOLD
-        ]  # arbitrary for large message
+        large_messages = [msg for msg in messages if len(msg.body) > LARGE_MESSAGE_BODY_THRESHOLD]  # arbitrary for large message
 
         for _i, msg in enumerate(large_messages[:3]):  # Test first 3 large messages
             # Test that we can still access all fields
@@ -1796,18 +1754,14 @@ def test_e2e_mail_client_service_direct_integration(  # noqa: C901, PLR0912, PLR
 
             # Test GET /messages/{id} endpoint
             message_id = first_message["id"]
-            response = httpx.get(
-                f"{service_base_url}/messages/{message_id}", timeout=10.0
-            )
+            response = httpx.get(f"{service_base_url}/messages/{message_id}", timeout=10.0)
             assert response.status_code == httpx.codes.OK
 
             single_message = response.json()
             assert single_message["id"] == message_id
 
             # Test POST /messages/{id}/mark-as-read endpoint
-            response = httpx.post(
-                f"{service_base_url}/messages/{message_id}/mark-as-read", timeout=10.0
-            )
+            response = httpx.post(f"{service_base_url}/messages/{message_id}/mark-as-read", timeout=10.0)
             assert response.status_code == httpx.codes.OK
 
             mark_response = response.json()
@@ -1820,9 +1774,7 @@ def test_e2e_mail_client_service_direct_integration(  # noqa: C901, PLR0912, PLR
 
     try:
         # Test 404 for non-existent message
-        response = httpx.get(
-            f"{service_base_url}/messages/non-existent-id", timeout=5.0
-        )
+        response = httpx.get(f"{service_base_url}/messages/non-existent-id", timeout=5.0)
 
         # Test invalid endpoint
         with suppress(httpx.HTTPStatusError):
@@ -1953,9 +1905,7 @@ def test_e2e_comprehensive_api_coverage(  # noqa: C901, PLR0912, PLR0915 - E2E t
 
     except Exception as e:
         # This level: error occurred during the entirety of HTTP API direct coverage phase (including both static and dynamic endpoints)
-        pytest.fail(
-            f"HTTP API direct coverage test failed in overall HTTP API coverage block: {e}"
-        )
+        pytest.fail(f"HTTP API direct coverage test failed in overall HTTP API coverage block: {e}")
 
     # Test 2: HTTP API direct coverage
 
@@ -1971,9 +1921,7 @@ def test_e2e_comprehensive_api_coverage(  # noqa: C901, PLR0912, PLR0915 - E2E t
                 if method == "GET":
                     response = httpx.get(f"{service_base_url}{endpoint}", timeout=10.0)
                 else:
-                    response = httpx.request(
-                        method, f"{service_base_url}{endpoint}", timeout=10.0
-                    )
+                    response = httpx.request(method, f"{service_base_url}{endpoint}", timeout=10.0)
 
                 # Validate response content
                 if response.status_code == httpx.codes.OK:
@@ -1986,9 +1934,7 @@ def test_e2e_comprehensive_api_coverage(  # noqa: C901, PLR0912, PLR0915 - E2E t
 
             except Exception as e:
                 # This level: error occurred while calling a specific static endpoint (e.g., GET /messages, GET /openapi.json)
-                pytest.fail(
-                    f"HTTP API direct coverage test failed at static endpoint invocation: {e}"
-                )
+                pytest.fail(f"HTTP API direct coverage test failed at static endpoint invocation: {e}")
 
         # Test dynamic endpoints if we have messages
         try:
@@ -2004,31 +1950,21 @@ def test_e2e_comprehensive_api_coverage(  # noqa: C901, PLR0912, PLR0915 - E2E t
                 for method, endpoint in dynamic_endpoints:
                     try:
                         if method == "GET":
-                            response = httpx.get(
-                                f"{service_base_url}{endpoint}", timeout=10.0
-                            )
+                            response = httpx.get(f"{service_base_url}{endpoint}", timeout=10.0)
                         elif method == "POST":
-                            response = httpx.post(
-                                f"{service_base_url}{endpoint}", timeout=10.0
-                            )
+                            response = httpx.post(f"{service_base_url}{endpoint}", timeout=10.0)
 
                     except Exception as e:
                         # This level: error occurred while calling a specific dynamic endpoint (e.g., GET /messages/{id}, POST /messages/{id}/mark-as-read)
-                        pytest.fail(
-                            f"HTTP API direct coverage test failed at endpoint invocation: {e}"
-                        )
+                        pytest.fail(f"HTTP API direct coverage test failed at endpoint invocation: {e}")
 
         except Exception as e:
             # This level: error occurred while attempting any of the dynamic endpoint operations, possibly for all endpoints or before entering their loop
-            pytest.fail(
-                f"HTTP API direct coverage test failed during dynamic endpoints setup or iteration: {e}"
-            )
+            pytest.fail(f"HTTP API direct coverage test failed during dynamic endpoints setup or iteration: {e}")
 
     except Exception as e:
         # This level: error occurred during the entirety of HTTP API direct coverage phase (including both static and dynamic endpoints)
-        pytest.fail(
-            f"HTTP API direct coverage test failed in overall HTTP API coverage block: {e}"
-        )
+        pytest.fail(f"HTTP API direct coverage test failed in overall HTTP API coverage block: {e}")
 
     # Test 3: Performance under load
 
@@ -2263,9 +2199,7 @@ def test_e2e_mail_client_service_coverage(  # noqa: C901, PLR0912, PLR0915 - E2E
                 if method == "GET":
                     response = httpx.get(f"{service_base_url}{endpoint}", timeout=10.0)
                 else:
-                    response = httpx.request(
-                        method, f"{service_base_url}{endpoint}", timeout=10.0
-                    )
+                    response = httpx.request(method, f"{service_base_url}{endpoint}", timeout=10.0)
 
                 # Test response content
                 if response.status_code == httpx.codes.OK:
@@ -2316,9 +2250,7 @@ def test_e2e_mail_client_service_coverage(  # noqa: C901, PLR0912, PLR0915 - E2E
                 if method == "GET":
                     response = httpx.get(f"{service_base_url}{endpoint}", timeout=5.0)
                 else:
-                    response = httpx.request(
-                        method, f"{service_base_url}{endpoint}", timeout=5.0
-                    )
+                    response = httpx.request(method, f"{service_base_url}{endpoint}", timeout=5.0)
 
             except httpx.HTTPStatusError as e:
                 pytest.fail(f"Service error handling test failed: {e}")
@@ -2348,9 +2280,7 @@ def test_e2e_mail_client_service_coverage(  # noqa: C901, PLR0912, PLR0915 - E2E
         expected_response_time = 2.0
 
         # Validate performance
-        assert (
-            avg_time < expected_response_time
-        ), f"Average response time too high: {avg_time:.3f}s"
+        assert avg_time < expected_response_time, f"Average response time too high: {avg_time:.3f}s"
 
     except Exception as e:
         pytest.fail(f"Performance and reliability test failed: {e}")
@@ -2764,9 +2694,7 @@ def test_e2e_gmail_message_implementation_coverage(service_base_url: str) -> Non
         """
 
         # Encode as base64
-        encoded_content = base64.b64encode(complex_content.encode("utf-8")).decode(
-            "utf-8"
-        )
+        encoded_content = base64.b64encode(complex_content.encode("utf-8")).decode("utf-8")
 
         message = GmailMessage("complex_id", encoded_content)
 
@@ -2803,9 +2731,7 @@ def test_e2e_gmail_message_implementation_coverage(service_base_url: str) -> Non
 
     try:
         # Test with minimal valid data
-        minimal_data = base64.b64encode(
-            b"From: test@example.com\nSubject: Test\n\nBody"
-        ).decode("utf-8")
+        minimal_data = base64.b64encode(b"From: test@example.com\nSubject: Test\n\nBody").decode("utf-8")
         message = GmailMessage("minimal_id", minimal_data)
 
         # Validate all properties are strings

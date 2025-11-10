@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body, HTTPException
 from task_client_api import TaskList as ServiceTaskList
 from task_client_api import get_tasklist as get_service_tasklist
 
-from .dependencies import TaskClientDep
+from task_client_service.dependencies import TaskClientDep
 
 logger = logging.getLogger(__name__)
 

@@ -11,35 +11,14 @@ The implementation supports multiple authentication modes:
 
 import json
 import logging
-import os
-from pathlib import Path
-from typing import ClassVar
 
 import task_client_api
-from google.auth.exceptions import GoogleAuthError, RefreshError
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore[import-untyped]
 from googleapiclient.discovery import Resource, build
 from googleapiclient.errors import HttpError
 from task_client_api import task, tasklist
 
-# Try to load .env file if python-dotenv is available
-try:
-    from dotenv import load_dotenv
-
-    load_dotenv()
-except ImportError:
-    # If python-dotenv is not available, check if .env file exists
-    # and manually load it
-    env_path = Path(".env")
-    if env_path.exists():
-        with env_path.open() as f:
-            for raw_line in f:
-                line = raw_line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    key, value = line.split("=", 1)
-                    os.environ[key.strip()] = value.strip()
+from gtask_client_impl.auth import OAuthManager
 
 
 class GTaskClient(task_client_api.Client):
@@ -68,148 +47,32 @@ class GTaskClient(task_client_api.Client):
 
     """
 
-    TOKEN_PATH: ClassVar[str] = "token.json"  # noqa: S105
-    CREDENTIALS_PATH: ClassVar[str] = "credentials.json"
-    SCOPES: ClassVar[list[str]] = [
-        "https://www.googleapis.com/auth/tasks",
-    ]
     FAILURE_TO_CRED = "Failed to obtain credentials. Please check your setup."
 
     def __init__(self, service: Resource | None = None, *, interactive: bool = False) -> None:
         """Initialize the GTaskClient, handling authentication."""
         self.logger = logging.getLogger(__name__)
+        self.auth_manager = OAuthManager(logger=self.logger)
         if service:
             self.service = service
             return  # Skip auth if service is provided
 
-        creds: Credentials | None = None
-        token_path = self.TOKEN_PATH
-        creds_path = self.CREDENTIALS_PATH
-
-        if interactive:
-            creds = self._run_interactive_flow(creds_path)
-
-        if not creds and not interactive:
-            creds = self._auth_from_env()
-
-        if not creds and not interactive:
-            creds = self._auth_from_token_file(token_path)
-
-        if not creds or (creds and not creds.valid and not creds.refresh_token):
-            if not interactive:
-                msg = (
-                    "No valid credentials found and interactive mode is disabled. "
-                    "Please provide valid credentials via environment variables or token file."
-                )
-                raise RuntimeError(msg)
-
-            creds = self._run_interactive_flow(creds_path)
-            if not creds:
-                msg = "Interactive authentication failed."
-                raise RuntimeError(msg)
-
+        creds = self.auth_manager.select_credentials(interactive=interactive)
         if not creds or not creds.valid:
             raise RuntimeError(self.FAILURE_TO_CRED)
-
-        if interactive or (creds.refresh_token and not Path(token_path).exists()):
-            self._save_token(creds, token_path)
-
         self.service = build("tasks", "v1", credentials=creds)
 
-    def _run_interactive_flow(self, creds_path: str) -> Credentials | None:
-        """Run the interactive OAuth flow.
+    def _ensure_service_initialized(self) -> None:
+        """Ensure the service is initialized with valid credentials.
 
-        This method launches a local web server to handle the OAuth2 flow,
-        opening the user's browser to complete authentication with Google.
+        If service is None, try to get credentials and initialize it.
+        Raises RuntimeError if credentials are not available.
         """
-        if not Path(creds_path).exists():
-            msg = f"'{creds_path}' not found. Cannot run interactive auth."
-            raise FileNotFoundError(msg)
-        flow = InstalledAppFlow.from_client_secrets_file(
-            creds_path,
-            self.SCOPES,
-        )
-        return flow.run_local_server(port=0)  # type: ignore[no-any-return]
 
-    def _auth_from_env(self) -> Credentials | None:
-        """Attempt to authenticate using environment variables.
+        def build_service(creds: Credentials) -> Resource:
+            return build("tasks", "v1", credentials=creds)
 
-        Expected environment variables:
-            TASKS_CLIENT_ID, TASKS_CLIENT_SECRET, TASKS_REFRESH_TOKEN
-            optional: TASKS_TOKEN_URI
-
-        Returns:
-            A refreshed Credentials object on success, or None on failure.
-
-        """
-        client_id = os.environ.get("TASKS_CLIENT_ID")
-        client_secret = os.environ.get("TASKS_CLIENT_SECRET")
-        refresh_token = os.environ.get("TASKS_REFRESH_TOKEN")
-        token_uri = os.environ.get("TASKS_TOKEN_URI", "https://oauth2.googleapis.com/token")
-
-        if not (client_id and client_secret and refresh_token):
-            return None
-
-        try:
-            creds = Credentials(  # type: ignore[no-untyped-call]
-                None,
-                refresh_token=refresh_token,
-                token_uri=token_uri,
-                client_id=client_id,
-                client_secret=client_secret,
-                scopes=self.SCOPES,
-            )
-            creds.refresh(Request())  # type: ignore[no-untyped-call]
-            return creds  # noqa: TRY300
-        except (GoogleAuthError, RefreshError, OSError, ValueError):
-            return None
-
-    def _auth_from_token_file(self, token_path: str) -> Credentials | None:
-        """Attempt to load credentials from a token file and refresh if needed.
-
-        Args:
-            token_path: Path to token file.
-
-        Returns:
-            A valid Credentials object or None if loading/refresh fails.
-
-        """
-        try:
-            if not Path(token_path).exists():
-                return None
-
-            creds = Credentials.from_authorized_user_file(  # type: ignore[no-untyped-call]
-                token_path,
-                self.SCOPES,
-            )
-
-            if creds and not creds.valid and creds.refresh_token:
-                try:
-                    creds.refresh(Request())  # type: ignore[no-untyped-call]
-                except (GoogleAuthError, RefreshError, OSError, ValueError):
-                    return None
-        except (GoogleAuthError, RefreshError, OSError, ValueError):
-            return None
-
-        return creds  # type: ignore[no-any-return]
-
-    def _save_token(self, creds: Credentials, token_path: str) -> None:
-        """Save the credentials token to a file.
-
-        Persists the OAuth2 credentials to a JSON file for future use,
-        avoiding the need to re-authenticate on subsequent runs.
-
-        Args:
-            creds: The credentials object to save.
-            token_path: Path where the token file should be saved.
-
-        Note:
-            The token file contains sensitive information and should be kept secure.
-            It's automatically added to .gitignore in most project templates.
-
-        """
-        with Path(token_path).open("w") as token:
-            token.write(creds.to_json())  # type: ignore[no-untyped-call]
+        self.service = self.auth_manager.ensure_service_initialized(self.service, build_service)
 
     """   TASKLIST OPERATIONS   """
 
@@ -223,6 +86,7 @@ class GTaskClient(task_client_api.Client):
             True if the tasklist was successfully deleted, False otherwise.
 
         """
+        self._ensure_service_initialized()
         try:
             (
                 self.service.tasklists()  # type: ignore[attr-defined]
@@ -246,6 +110,7 @@ class GTaskClient(task_client_api.Client):
             The created TaskList as returned by the API.
 
         """
+        self._ensure_service_initialized()
         try:
             body = {"title": tasklist.title}
             result = (
@@ -268,6 +133,7 @@ class GTaskClient(task_client_api.Client):
             A list of TaskList objects.
 
         """
+        self._ensure_service_initialized()
         try:
             result = (
                 self.service.tasklists().list().execute()  # type: ignore[attr-defined]
@@ -295,6 +161,7 @@ class GTaskClient(task_client_api.Client):
             A list of Task objects.
 
         """
+        self._ensure_service_initialized()
         try:
             result = (
                 self.service.tasks()  # type: ignore[attr-defined]
@@ -328,6 +195,7 @@ class GTaskClient(task_client_api.Client):
             The inserted task with updated fields.
 
         """
+        self._ensure_service_initialized()
         try:
             body: dict[str, str | None] = {
                 "title": task.title,
@@ -368,6 +236,7 @@ class GTaskClient(task_client_api.Client):
             True if the task was successfully deleted, False otherwise.
 
         """
+        self._ensure_service_initialized()
         try:
             # Note: Google Tasks API requires tasklist ID, defaulting to "@default"
             # In a production system, you might want to store tasklist_id with tasks
@@ -400,6 +269,7 @@ class GTaskClient(task_client_api.Client):
             ValueError: If the task cannot be retrieved.
 
         """
+        self._ensure_service_initialized()
         try:
             result = (
                 self.service.tasks()  # type: ignore[attr-defined]

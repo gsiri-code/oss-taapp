@@ -5,7 +5,10 @@ description = "Template repository for a mail client"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "google-auth-oauthlib>=1.2.2",
+    "openapi-python-client>=0.27.1",
     "python-dotenv>=1.0.0",
+    "types-requests>=2.32.4.20250913",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +35,8 @@ members = [
   "src/task_client_api",
   "src/gtask_client_impl",
   "src/task_client_service",
+  "src/task_client_adapter",
+  "src/task_client_service_client",
 ]
 
 [tool.ruff]
@@ -68,6 +73,8 @@ mypy_path = [
     "src/task_client_api/src",
     "src/gtask_client_impl/src",
     "src/task_client_service/src",
+    "src/task_client_service_client/src",
+    "src/task_client_adapter/src",
 ]
 
 ignore_missing_imports = false
@@ -78,14 +85,7 @@ warn_unused_ignores = false
 module = [
     "google.*",
     "googleapiclient.*",
-    "gmail_client_impl.*",
-    "mail_client_api.*",
-    "mail_client_service.*",
-    "mail_client_adapter.*",
-    "mail_client_service_client.*",
-    "task_client_api.*",
-    "gtask_client_impl.*",
-
+    "google_auth_oauthlib.*",
 ]
 ignore_missing_imports = true
 
