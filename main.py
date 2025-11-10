@@ -4,6 +4,8 @@
 
 import contextlib
 import logging
+import os
+from pathlib import Path
 
 import gmail_client_impl  # noqa: F401
 import mail_client_api
@@ -14,8 +16,14 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:
     """Initialize the client and demonstrate all mail client methods."""
+    # In CI environments (like CircleCI), use non-interactive mode with environment variables
+    # Otherwise, use interactive mode if credentials.json exists
+    is_ci = os.environ.get("CIRCLECI") == "true"
+    has_credentials = Path("credentials.json").exists()
+    use_interactive = not is_ci and has_credentials
+
     # Now, get_client() returns a GmailClient instance...
-    client = mail_client_api.get_client(interactive=True)
+    client = mail_client_api.get_client(interactive=use_interactive)
 
     # Test 1: Get messages (existing functionality)
     messages = list(client.get_messages(max_results=3))
