@@ -1,112 +1,110 @@
-## Task Client Service (FastAPI)
+# Task Client Service
 
-A FastAPI service that wires up the workspace `task-client-api` with the `gtask-client-impl`. It initializes the task client on startup to ensure the Google Tasks implementation registers correctly.
+FastAPI service providing a REST API for Google Tasks operations via `task-client-api` and `gtask-client-impl`.
 
-### Available Endpoints
+## Prerequisites
 
-The service provides a RESTful API for task and tasklist operations, following REST conventions:
+- Python 3.11+
+- `uv` package manager
+- `credentials.json` file for OAuth authentication
 
-#### Tasklist Endpoints
+## Endpoints
 
-- `GET /tasklists` - List all tasklists from the task client
+### Authentication
+
+- `GET /auth/login` - Initiate OAuth 2.0 login flow
+- `GET /auth/callback` - OAuth callback handler
+- `POST /auth/refresh` - Refresh access token
+- `GET /auth/health-check` - Health check endpoint
+
+### Tasklists
+
+- `GET /tasklists` - List all tasklists
 - `POST /tasklists` - Create a new tasklist
-- `DELETE /tasklists/{tasklist_id}` - Delete a tasklist by ID
+- `DELETE /tasklists/{tasklist_id}` - Delete a tasklist
 
-#### Task Endpoints
+### Tasks
 
-- `GET /tasks/{tasklist_id}` - List all tasks within a given tasklist
-- `GET /tasks/{tasklist_id}/{task_id}` - Retrieve a specific task by ID from a tasklist
-- `POST /tasks/{tasklist_id}` - Create a new task in a tasklist
-- `DELETE /tasks/{tasklist_id}/{task_id}` - Delete a task from a tasklist
+- `GET /tasks/{tasklist_id}` - List tasks in a tasklist
+- `GET /tasks/{tasklist_id}/{task_id}` - Get a specific task
+- `POST /tasks/{tasklist_id}` - Create a new task
+- `DELETE /tasks/{tasklist_id}/{task_id}` - Delete a task
 
-All endpoints return JSON responses and use appropriate HTTP status codes:
+## Running the Service
 
-- `200 OK` - Successful operations
-- `400 Bad Request` - Invalid request data or attempting to delete default tasklist
-- `404 Not Found` - Task or tasklist not found
-- `409 Conflict` - Tasklist with the same title already exists
-- `500 Internal Server Error` - Client exceptions or server errors
+1. Install dependencies:
 
-### Prerequisites
-
-- **Python 3.11+**
-- **uv** (package manager)
-
-Note: This repository already contains a `token.json` at the repo root used by the Google Tasks implementation for non-interactive startup.
-
-### Running the Service
-
-#### Run with uv (recommended)
-
-1. Install dependencies for this package (and link workspace members):
    ```bash
    uv sync --all-packages --extra dev
    ```
-2. Start the FastAPI development server:
+
+2. Start the service:
+
    ```bash
    uvicorn task_client_service.fast_api_service:app --reload --port 8001
    ```
-3. The service will be available at `http://127.0.0.1:8001`
 
-4. Open the docs UI:
+3. Authenticate:
+
+   - Visit `http://127.0.0.1:8001/auth/login` to initiate OAuth flow
+   - Complete authentication in your browser
+
+4. Access API documentation:
    - Swagger UI: `http://127.0.0.1:8001/docs`
 
-#### Example Usage
+## Swagger UI Authentication
+
+When using the Swagger UI documentation interface, the service automatically initiates the OAuth login flow when you attempt to hit an endpoint while not authenticated.
+
+**Automatic OAuth Flow:**
+
+1. Navigate to Swagger UI at `http://127.0.0.1:8001/docs`
+2. Try to execute any endpoint (e.g., `GET /tasklists`) without being authenticated
+3. The service detects missing credentials and automatically triggers the OAuth authentication flow
+4. Your browser will open to Google's authorization page
+5. Complete the OAuth flow in your browser
+6. Once authenticated, return to Swagger UI and retry the endpoint
+
+This automatic authentication eliminates the need to manually visit `/auth/login` before using the Swagger UI. The service dependency injection system handles credential detection and OAuth initiation transparently.
+
+**Note:** Ensure `credentials.json` is present in the project root for the OAuth flow to work.
+
+## Example Usage
 
 ```bash
-# List all tasklists
+# Authenticate first
+curl http://127.0.0.1:8001/auth/login
+
+# List tasklists
 curl http://127.0.0.1:8001/tasklists
 
-# Create a new tasklist
+# Create tasklist
 curl -X POST http://127.0.0.1:8001/tasklists \
   -H "Content-Type: application/json" \
-  -d '{"title": "My New Task List"}'
+  -d '{"title": "My Task List"}'
 
-# List tasks in a tasklist
-curl http://127.0.0.1:8001/tasks/tasklist_12345
-
-# Get a specific task
-curl http://127.0.0.1:8001/tasks/tasklist_12345/task_67890
-
-# Create a new task
-curl -X POST http://127.0.0.1:8001/tasks/tasklist_12345 \
+# Create task
+curl -X POST http://127.0.0.1:8001/tasks/tasklist_id \
   -H "Content-Type: application/json" \
   -d '{
-    "title": "My New Task",
-    "notes": "This is a new task",
+    "title": "My Task",
     "status": "needsAction",
     "due": "2025-11-15T00:00:00.000Z"
   }'
-
-# Delete a task
-curl -X DELETE http://127.0.0.1:8001/tasks/tasklist_12345/task_67890
-
-# Delete a tasklist
-curl -X DELETE http://127.0.0.1:8001/tasklists/tasklist_12345
 ```
 
-### Testing
-
-This service includes comprehensive unit tests for all endpoints using FastAPI's testing best practices.
-
-#### Run Tests with uv
+## Testing
 
 ```bash
-# Install test dependencies
 uv sync --extra test
-
-# Run all tests
 uv run pytest
-
-# Run tests with coverage
-uv run pytest --cov=src/task_client_service --cov-report=term-missing
 ```
 
-### Notes
+## HTTP Status Codes
 
-- The application imports `gtask_client_impl` and calls `task_client_api.get_client(interactive=False)` during FastAPI startup to validate registration and basic initialization.
-- If Google Tasks credentials are not present/valid, startup may log an error in environments without `token.json`. In this repo, a `token.json` exists at the root.
-- All endpoints delegate operations to the underlying `task_client_api.Client` implementation, providing a thin REST wrapper over the component functionality.
-- Error handling consistently returns appropriate HTTP status codes with error messages for debugging while maintaining API consistency.
-- The service follows REST conventions with appropriate HTTP methods (GET for retrieval, POST for creation, DELETE for removal).
-- The default tasklist cannot be deleted and will return a 400 Bad Request error if attempted.
+- `200 OK` - Success
+- `400 Bad Request` - Invalid request or attempting to delete default tasklist
+- `401 Unauthorized` - Authentication required
+- `404 Not Found` - Resource not found
+- `409 Conflict` - Tasklist title already exists
+- `500 Internal Server Error` - Server error

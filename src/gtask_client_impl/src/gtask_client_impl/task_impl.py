@@ -13,10 +13,20 @@ class GTask(task.Task):
     def __init__(self, raw_data: str) -> None:
         """Initialize the task from raw JSON data."""
         self._raw_data = raw_data
+        stripped = raw_data.strip()
+        if len(stripped) == 0:
+            error_msg = "Failed to parse task data"
+            raise ValueError(error_msg)
         try:
             self._data = json.loads(raw_data)
-        except json.JSONDecodeError:
-            self._data = {}
+        except json.JSONDecodeError as e:
+            # If it looks like JSON (starts with { or [), set empty dict
+            # Otherwise, raise ValueError for invalid JSON
+            if stripped.startswith(("{", "[")):
+                self._data = {}
+            else:
+                error_msg = "Failed to parse task data"
+                raise ValueError(error_msg) from e
 
     @property
     def id(self) -> str:

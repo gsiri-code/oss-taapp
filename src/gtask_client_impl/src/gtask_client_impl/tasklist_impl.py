@@ -15,8 +15,9 @@ class GTaskList(tasklist.TaskList):
         self._raw_data = raw_data
         try:
             self._data = json.loads(raw_data)
-        except json.JSONDecodeError:
-            self._data = {}
+        except json.JSONDecodeError as e:
+            error_msg = "Failed to parse tasklist data"
+            raise ValueError(error_msg) from e
 
     @property
     def id(self) -> str:

@@ -1,36 +1,22 @@
 """Task client adapter package for wrapping auto-generated client."""
 
+import task_client_api
+
 from .service_client_adapter import (
-    ServiceClientAdapter,
-    get_service_client_impl,
+    ServiceClientAdapter as _ServiceClientAdapter,
 )
 from .service_client_adapter import (
     register as _register_service_client,
 )
 from .service_task import (
-    ServiceTask,
-    get_service_task_impl,
-)
-from .service_task import (
     register as _register_service_task,
-)
-from .service_tasklist import (
-    ServiceTaskList,
-    get_service_tasklist_impl,
 )
 from .service_tasklist import (
     register as _register_service_tasklist,
 )
 
-__all__ = [
-    "ServiceClientAdapter",
-    "ServiceTask",
-    "ServiceTaskList",
-    "get_service_client_impl",
-    "get_service_task_impl",
-    "get_service_tasklist_impl",
-    "register",
-]
+# Explicit re-export for type checking
+ServiceClientAdapter: type[task_client_api.Client] = _ServiceClientAdapter
 
 
 def register() -> None:

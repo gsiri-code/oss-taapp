@@ -3,8 +3,8 @@
 from unittest.mock import Mock, patch
 
 import pytest
+from mail_client_adapter.service_client_adapter import ServiceClientAdapter
 
-from mail_client_adapter import ServiceClientAdapter
 from mail_client_service_client import Client
 
 

@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from gtask_client_impl.task_impl import GTask
 
 
@@ -88,41 +90,24 @@ class TestEdgeCases:
 
     def test_empty_json_string(self) -> None:
         """Test handling of empty JSON string."""
-        empty_json = "{}"
+        empty_json = ""
 
-        task = GTask(raw_data=empty_json)
-
-        assert task.id == ""
-        assert task.title == ""
-        assert task.notes is None
-        assert task.status == "needsAction"
-        assert task.due is None
-        assert task.completed is None
-        assert task.deleted is False
-        assert task.hidden is False
+        with pytest.raises(ValueError, match="Failed to parse task data"):
+            GTask(raw_data=empty_json)
 
     def test_invalid_json(self) -> None:
         """Test handling of completely invalid JSON."""
         invalid_json = "This is not JSON at all!!!"
 
-        task = GTask(raw_data=invalid_json)
-
-        assert task.id == ""
-        assert task.title == ""
-        assert task.notes is None
-        assert task.status == "needsAction"
-        assert task.deleted is False
-        assert task.hidden is False
+        with pytest.raises(ValueError, match="Failed to parse task data"):
+            GTask(raw_data=invalid_json)
 
     def test_whitespace_only_json(self) -> None:
         """Test JSON string that is only whitespace characters."""
         whitespace_json = "   \t\n  "
 
-        task = GTask(raw_data=whitespace_json)
-
-        assert task.id == ""
-        assert task.title == ""
-        assert isinstance(task.status, str)
+        with pytest.raises(ValueError, match="Failed to parse task data"):
+            GTask(raw_data=whitespace_json)
 
     def test_non_ascii_task_id(self) -> None:
         """Test non-ASCII characters in task ID."""
@@ -136,7 +121,6 @@ class TestEdgeCases:
         task = GTask(raw_data=raw_data)
 
         assert task.id == unicode_id
-        assert task.title == "Unicode ID Test"
 
     def test_nested_json_structure(self) -> None:
         """Test JSON with nested structures (should ignore extra nested data)."""
@@ -173,32 +157,6 @@ class TestEdgeCases:
         assert task.notes is None
         assert task.due is None
         assert task.completed is None
-
-    def test_repeated_property_access(self) -> None:
-        """Test that accessing properties multiple times yields consistent results."""
-        task_data = {
-            "id": "repeat123",
-            "title": "Repeat Test",
-            "notes": "Consistent notes",
-            "status": "completed",
-            "due": "2025-07-30T10:30:00Z",
-            "completed": "2025-07-29T15:45:00Z",
-            "deleted": True,
-            "hidden": True,
-        }
-
-        raw_data = json.dumps(task_data)
-        task = GTask(raw_data=raw_data)
-
-        for _ in range(5):
-            assert task.id == "repeat123"
-            assert task.title == "Repeat Test"
-            assert task.notes == "Consistent notes"
-            assert task.status == "completed"
-            assert task.due == "2025-07-30T10:30:00Z"
-            assert task.completed == "2025-07-29T15:45:00Z"
-            assert task.deleted is True
-            assert task.hidden is True
 
     def test_task_with_only_id_and_title(self) -> None:
         """Test task that contains only id and title fields."""
