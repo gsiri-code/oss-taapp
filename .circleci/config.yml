@@ -286,14 +286,9 @@ workflows:
   # Main workflow: Build, Lint, Test (runs on all branches)
   build_and_test:
     jobs:
+      # Build runs on all branches to support integration/e2e tests on all branches
       - build:
-          filters:
-            branches:
-              ignore:
-                - main
-                - develop
-                - kamen-requierd-fixes
-                - make-real-deletions
+        # No branch filters - runs on all branches
       - lint:
           requires:
             - build
@@ -327,39 +322,26 @@ workflows:
                 - kamen-requierd-fixes
                 - make-real-deletions
 
+      # Integration and e2e tests run on ALL branches
       - integration_test:
           requires:
-            - circleci_test # Run after CircleCI tests pass
+            - build # Run after build completes on all branches
           context: hw1 # Context containing Gmail and Google Tasks API credentials
-          filters:
-            branches:
-              only:
-                - main
-                - develop
-                - kamen-requierd-fixes
-                - make-real-deletions
-                - temp/testing-circle-e2e
-                - hw1-final-submission
+          # Runs on all branches - tests will skip gracefully if credentials are not available
 
       - e2e_test:
           requires:
-            - integration_test # Run after integration tests pass
+            - build # Run after build completes on all branches
           context: hw1 # Context containing Gmail API credentials
-          filters:
-            branches:
-              only:
-                - main
-                - develop
-                - kamen-requierd-fixes
-                - make-real-deletions
-                - temp/testing-circle-e2e
-                - hw1-final-submission
+          # Runs on all branches - tests will skip gracefully if credentials are not available
 
       # Optional: Report summary after core tests
       - report_summary:
           requires:
             - unit_test
             - circleci_test
+            - integration_test
+            - e2e_test
           filters:
             branches:
               ignore:
