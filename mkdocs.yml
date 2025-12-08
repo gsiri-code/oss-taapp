@@ -1,5 +1,5 @@
-site_name: Mail Client Project
-site_description: "A professional-grade template for a modern Python project."
+site_name: OSS-TAPP
+site_description: 'A professional-grade template for a modern Python project with mail and task client implementations.'
 
 theme:
   name: material
@@ -20,29 +20,51 @@ theme:
 
 nav:
   - 'Overview': 'index.md'
-  - 'Architecture': 'component.md'
-  - 'API Reference':
-    - 'Message Protocol': 'api/message.md'
-    - 'Mail Client API': 'api/mail_client_api.md'
-    - 'Gmail Client Implementation': 'api/gmail_client_impl.md'
-    - 'Gmail Message Implementation': 'api/gmail_message_impl.md'
+  - 'Design': 'DESIGN.md'
+  - 'Contributing': 'CONTRIBUTING.md'
+  - 'Mail Client':
+      - 'API Reference': 'api/mail_client_api.md'
+      - 'Gmail Implementation': 'api/gmail_client_impl.md'
+      - 'Service': 'libraries/mail_client_service.md'
+      - 'Service Client': 'libraries/mail_client_service_client.md'
+      - 'Adapter': 'libraries/mail_client_adapter.md'
+  - 'Task Client':
+      - 'API Reference': 'libraries/task_client_api.md'
+      - 'Google Tasks Implementation': 'libraries/gtask_client_impl.md'
+      - 'Service': 'libraries/task_client_service.md'
+      - 'Service Client': 'libraries/task_client_service_client.md'
+      - 'Adapter': 'libraries/task_client_adapter.md'
+  - 'Tickets':
+      - 'API Reference': 'libraries/tickets_api.md'
+      - 'Implementation': 'libraries/tickets_client_impl.md'
+  - 'Testing': 'testing.md'
+  - 'CI/CD Setup': 'circleci-setup.md'
 
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
 
 plugins:
   - mkdocstrings:
       handlers:
         python:
           options:
-            # This helps mkdocstrings find packages in the src directory
-            search_paths: 
-              - src/message/src
+            search_paths:
               - src/mail_client_api/src
               - src/gmail_client_impl/src
-              - src/gmail_message_impl/src
+              - src/mail_client_service/src
+              - src/mail_client_adapter/src
+              - src/mail_client_service_client/src
+              - src/task_client_api/src
+              - src/gtask_client_impl/src
+              - src/task_client_service/src
+              - src/task_client_adapter/src
+              - src/task_client_service_client/src
+              - src/tickets_api/src
+              - src/tickets_client_impl/src
             show_source: false
             docstring_section_style: spacy
             members_order: source

@@ -30,7 +30,7 @@ def test_main_script_runs_and_fetches_tasks() -> None:
     Only runs locally with credentials.json or token.json files.
     """
     # Get the path to test_gtask.py (should be in the workspace root)
-    main_script = WORKSPACE_ROOT / "test_gtask.py"
+    main_script = Path(__file__).parent.parent.parent / "test_gtask.py"
 
     if not main_script.exists():
         pytest.skip(f"test_gtask.py not found at {main_script}")
