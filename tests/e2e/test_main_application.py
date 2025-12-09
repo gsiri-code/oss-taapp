@@ -25,6 +25,10 @@ def test_main_script_runs_and_fetches_messages() -> None:
     This test requires real credentials and a live internet connection.
     Only runs locally with credentials.json or token.json files.
     """
+    # Skip in CI - this test requires local credentials file
+    if os.environ.get("CIRCLECI") == "true":
+        pytest.skip("This test requires local credentials.json file - skipping in CI")
+
     # Get the path to main.py (should be in the workspace root)
     main_script = Path(__file__).parent.parent.parent / "main.py"
 
@@ -71,6 +75,17 @@ def test_main_script_runs_and_fetches_messages() -> None:
     except subprocess.TimeoutExpired:
         pytest.fail("E2E test timed out - main.py took too long to execute")
     except subprocess.CalledProcessError as e:
+        # Check if this is an authentication failure
+        combined_output = (e.stdout or "") + (e.stderr or "")
+        if any(
+            msg in combined_output
+            for msg in [
+                "credentials.json' not found",
+                "Cannot run interactive auth",
+                "Failed to obtain credentials",
+            ]
+        ):
+            pytest.skip("Authentication failed - credentials.json required for interactive auth")
         # If the script fails, print its output for easier debugging
         pytest.fail(
             f"E2E test failed when running main.py.\nExit Code: {e.returncode}\nStdout: {e.stdout}\nStderr: {e.stderr}",

@@ -127,9 +127,7 @@ class TicketsClient(TicketInterface):
                 error_msg = "No tasklists available"
                 raise RuntimeError(error_msg)
             self._default_tasklist_id = tasklists[0].id
-            self.logger.info(
-                "Cached default tasklist ID: %s", self._default_tasklist_id
-            )
+            self.logger.info("Cached default tasklist ID: %s", self._default_tasklist_id)
         return self._default_tasklist_id
 
     def _ticket_status_to_task_status(self, ticket_status: TicketStatus) -> str:
@@ -178,9 +176,7 @@ class TicketsClient(TicketInterface):
         """
         return Ticket(task_obj)
 
-    def create_ticket(
-        self, title: str, description: str, assignee: str | None = None
-    ) -> TicketABC:
+    def create_ticket(self, title: str, description: str, assignee: str | None = None) -> TicketABC:
         """Create a new ticket.
 
         Args:

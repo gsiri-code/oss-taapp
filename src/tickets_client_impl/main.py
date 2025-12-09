@@ -129,9 +129,7 @@ def _test_update_ticket_status(client: TicketsClient, ticket_id: str) -> str | N
     """
     logger.info("\n[6] Updating ticket status to IN_PROGRESS...")
     try:
-        updated_ticket = client.update_ticket(
-            ticket_id=ticket_id, status=TicketStatus.IN_PROGRESS
-        )
+        updated_ticket = client.update_ticket(ticket_id=ticket_id, status=TicketStatus.IN_PROGRESS)
         logger.info("✓ Ticket updated successfully")
         logger.info("  ID: %s", updated_ticket.id)
         logger.info("  Title: %s", updated_ticket.title)
@@ -184,7 +182,9 @@ def _test_list_all_tickets(client: TicketsClient) -> None:
             status_emoji = (
                 "✓"
                 if ticket.status == TicketStatus.CLOSED
-                else "○" if ticket.status == TicketStatus.OPEN else "→"
+                else "○"
+                if ticket.status == TicketStatus.OPEN
+                else "→"
             )
             logger.info(
                 "  %d. %s %s (ID: %s, Status: %s)",
