@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "google-auth-oauthlib>=1.2.2",
+    "mkdocs>=1.6.1",
     "openapi-python-client>=0.27.1",
     "python-dotenv>=1.0.0",
     "types-requests>=2.32.4.20250913",
@@ -37,6 +38,8 @@ members = [
   "src/task_client_service",
   "src/task_client_adapter",
   "src/task_client_service_client",
+  "src/tickets_api",
+  "src/tickets_client_impl",
 ]
 
 [tool.ruff]
@@ -75,6 +78,8 @@ mypy_path = [
     "src/task_client_service/src",
     "src/task_client_service_client/src",
     "src/task_client_adapter/src",
+    "src/tickets_api/src",
+    "src/tickets_client_impl/src",
 ]
 
 ignore_missing_imports = false

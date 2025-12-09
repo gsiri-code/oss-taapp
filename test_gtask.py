@@ -2,6 +2,8 @@
 
 import json
 import logging
+import os
+from pathlib import Path
 
 import gtask_client_impl  # noqa: F401
 import task_client_api
@@ -12,8 +14,14 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:  # noqa: PLR0912, PLR0915, C901 # Just a test script
     """Initialize the client and demonstrate all task client methods."""
+    # In CI environments (like CircleCI), use non-interactive mode with environment variables
+    # Otherwise, use interactive mode if credentials.json exists
+    is_ci = os.environ.get("CIRCLECI") == "true"
+    has_credentials = Path("credentials.json").exists()
+    use_interactive = not is_ci and has_credentials
+
     # Now, get_client() returns a GTaskClient instance...
-    client = task_client_api.get_client(interactive=True)
+    client = task_client_api.get_client(interactive=use_interactive)
 
     # Test 1: List all tasklists
     logger.info("Test 1: Listing all tasklists...")
@@ -161,7 +169,16 @@ def main() -> None:  # noqa: PLR0912, PLR0915, C901 # Just a test script
             test_tasklist_for_operations.title,
             test_tasklist_for_operations.id,
         )
-        user_input = input("Do you want to delete this tasklist? Type 'DELETE' to confirm: ").strip()
+        try:
+            user_input = input("Do you want to delete this tasklist? Type 'DELETE' to confirm: ").strip()
+        except EOFError:
+            # This means that CircleCI or another non-interactive environment is not going to actually delete anything
+            logger.info(
+                "Deletion skipped in non-interactive environment. Tasklist '%s' (ID: %s) was not deleted.",
+                test_tasklist_for_operations.title,
+                test_tasklist_for_operations.id,
+            )
+            user_input = ""
 
         if user_input == "DELETE":
             try:
